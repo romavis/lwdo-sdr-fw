@@ -1,0 +1,77 @@
+# status LED
+set_io led_sts_r 93
+set_io led_sts_g 94
+# in1-2 LED
+set_io led_in1_r 24
+set_io led_in2_r 25
+set_io led_in2_g 26
+set_io led_in1_g 28
+# in3-4 LED
+set_io led_in3_r 29
+set_io led_in4_r 31
+set_io led_in4_g 32
+set_io led_in3_g 33
+
+# ADC1-2
+set_io adc_sclk 15
+set_io adc1_sda 16
+set_io adc1_sdb 17
+set_io adc1_cs_n 18
+
+set_io adc_sclk_gbin 20
+set_io adc2_sda 21
+set_io adc2_sdb 22
+set_io adc2_cs_n 23
+
+# External I/O
+set_io extio[8] 34
+set_io extio[7] 37
+set_io extio[6] 38
+set_io extio[5] 39
+set_io extio[4] 41
+set_io extio[3] 42
+set_io extio[2] 43
+set_io extio[1] 44
+
+# SPI DAC
+set_io spi_dac_mosi 45
+set_io spi_dac_sclk 47
+set_io spi_dac_sync_n 48
+
+# System clocks
+set_io clk_20mhz_gbin1 49
+set_io clk_20mhz_gbin2 52
+set_io clk_out 55
+set_io clk_ref_in 56
+set_io clk_out_sel 60
+
+# FTDI GPIO
+set_io ftdi_io1 64
+set_io ftdi_io2 63
+
+# FTDI FIFO
+set_io ftdi_fifo_oe_n 73
+set_io ftdi_fifo_clkout 74
+set_io ftdi_fifo_siwu 75
+set_io ftdi_fifo_wr_n 76
+set_io ftdi_fifo_rd_n 78
+set_io ftdi_fifo_txe_n 79
+set_io ftdi_fifo_rxf_n 80
+set_io ftdi_fifo_d[7] 81
+set_io ftdi_fifo_d[6] 82
+set_io ftdi_fifo_d[5] 83
+set_io ftdi_fifo_d[4] 84
+set_io ftdi_fifo_d[3] 85
+set_io ftdi_fifo_d[2] 87
+set_io ftdi_fifo_d[1] 88
+set_io ftdi_fifo_d[0] 90
+
+# QSPI flash
+set_io qspi_sclk 70
+set_io qspi_cs 71
+set_io qspi_mosi_io0 67
+set_io qspi_miso_io1 68
+set_io qspi_io2 62
+set_io qspi_io3 61
+
+# TODO: SRAM
