@@ -91,7 +91,7 @@ module test_cmd_wb;
         .i_mreq_wr(mreq_wr),
         .i_mreq_wsize(mreq_wsize),
         .i_mreq_aincr(mreq_aincr),
-        .i_mreq_size(mreq_size),
+        .i_mreq_wcount(mreq_wcount),
         .i_mreq_addr(mreq_addr),
         // rx
         .o_rx_ready(rx_ready),
@@ -121,7 +121,7 @@ module test_cmd_wb;
     reg mreq_wr = 0;
     reg [1:0] mreq_wsize = 0;
     reg mreq_aincr = 0;
-    reg [7:0] mreq_size = 0;
+    reg [7:0] mreq_wcount = 0;
     reg [31:0] mreq_addr = 0;
     // rx stream
     wire [7:0] rx_data;
@@ -149,7 +149,7 @@ module test_cmd_wb;
                 mreq_wsize == CMD_WSIZE_4BYTE ? 4 : mreq_wsize == CMD_WSIZE_2BYTE ? 2 : mreq_wsize == CMD_WSIZE_1BYTE ? 1 : 0,
                 mreq_addr,
                 mreq_aincr,
-                mreq_size
+                mreq_wcount
             );
         end
     end
@@ -170,7 +170,7 @@ module test_cmd_wb;
         mreq_addr <= 32'h0C;    // Byte address: 0xC, WB word address will be 0x3
         mreq_aincr <= 1'b1; 
         mreq_wsize <= CMD_WSIZE_2BYTE;
-        mreq_size <= 8'd2;  // 2 words
+        mreq_wcount <= 8'd2;  // 2 words
 
         mreq_valid <= 1'b1;
         @(posedge clk); wait(mreq_ready) @(posedge clk);
@@ -183,7 +183,7 @@ module test_cmd_wb;
         mreq_addr <= 32'h10;    // Byte address: 0x10, WB word address will be 0x4
         mreq_aincr <= 1'b1; 
         mreq_wsize <= CMD_WSIZE_4BYTE;
-        mreq_size <= 8'd2;  // 2 words
+        mreq_wcount <= 8'd2;  // 2 words
 
         mreq_valid <= 1'b1;
         @(posedge clk); wait(mreq_ready) @(posedge clk);

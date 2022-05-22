@@ -43,7 +43,7 @@ module wb_ctrl_port #(
     wire crx_mreq_wr;
     wire [1:0] crx_mreq_wsize;
     wire crx_mreq_aincr;
-    wire [7:0] crx_mreq_size;
+    wire [7:0] crx_mreq_wcount;
     wire [31:0] crx_mreq_addr;
 
     // MREQ selected for execution
@@ -52,7 +52,7 @@ module wb_ctrl_port #(
     wire exec_mreq_wr;
     wire [1:0] exec_mreq_wsize;
     wire exec_mreq_aincr;
-    wire [7:0] exec_mreq_size;
+    wire [7:0] exec_mreq_wcount;
     wire [31:0] exec_mreq_addr;
 
     // CMD_WB Rx and Tx streams
@@ -92,7 +92,7 @@ module wb_ctrl_port #(
         .o_mreq_wr(crx_mreq_wr),
         .o_mreq_wsize(crx_mreq_wsize),
         .o_mreq_aincr(crx_mreq_aincr),
-        .o_mreq_size(crx_mreq_size),
+        .o_mreq_wcount(crx_mreq_wcount),
         .o_mreq_addr(crx_mreq_addr)
     );
 
@@ -110,7 +110,7 @@ module wb_ctrl_port #(
         .i_mreq_wr(exec_mreq_wr),
         .i_mreq_wsize(exec_mreq_wsize),
         .i_mreq_aincr(exec_mreq_aincr),
-        .i_mreq_size(exec_mreq_size),
+        .i_mreq_wcount(exec_mreq_wcount),
         .i_mreq_addr(exec_mreq_addr)
     );
 
@@ -136,7 +136,7 @@ module wb_ctrl_port #(
         .i_mreq_wr(exec_mreq_wr),
         .i_mreq_wsize(exec_mreq_wsize),
         .i_mreq_aincr(exec_mreq_aincr),
-        .i_mreq_size(exec_mreq_size),
+        .i_mreq_wcount(exec_mreq_wcount),
         .i_mreq_addr(exec_mreq_addr),
         // rx
         .o_rx_ready(cwb_rx_ready),
@@ -154,7 +154,7 @@ module wb_ctrl_port #(
     assign exec_mreq_wr = crx_mreq_wr;
     assign exec_mreq_wsize = crx_mreq_wsize;
     assign exec_mreq_aincr = crx_mreq_aincr;
-    assign exec_mreq_size = crx_mreq_size;
+    assign exec_mreq_wcount = crx_mreq_wcount;
     assign exec_mreq_addr = crx_mreq_addr;
     
     // Rx stream to CRX / CWB switch

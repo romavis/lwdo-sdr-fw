@@ -13,7 +13,7 @@ module test_cmd_tx;
     reg mreq_wr = 0;
     reg [1:0] mreq_wsize = 0;
     reg mreq_aincr = 0;
-    reg [7:0] mreq_size = 0;
+    reg [7:0] mreq_wcount = 0;
     reg [31:0] mreq_addr = 0;
     wire [7:0] tx_data;
     wire tx_valid;
@@ -32,7 +32,7 @@ module test_cmd_tx;
         .i_mreq_wr(mreq_wr),
         .i_mreq_wsize(mreq_wsize),
         .i_mreq_aincr(mreq_aincr),
-        .i_mreq_size(mreq_size),
+        .i_mreq_wcount(mreq_wcount),
         .i_mreq_addr(mreq_addr)
     );
 
@@ -50,7 +50,7 @@ module test_cmd_tx;
         
         mreq_wsize <= CMD_WSIZE_2BYTE;
         mreq_aincr <= 1;
-        mreq_size <= 8'd5;
+        mreq_wcount <= 8'd5;
         mreq_addr <= 32'h12345678;
 
         // STROBE
@@ -63,7 +63,7 @@ module test_cmd_tx;
         mreq_wr <= 1;
         mreq_wsize <= CMD_WSIZE_2BYTE;
         mreq_aincr <= 1;
-        mreq_size <= 8'd5;
+        mreq_wcount <= 8'd5;
         mreq_addr <= 32'h43211234;
 
         // STROBE

@@ -21,7 +21,7 @@ module cmd_wb #(
     input i_mreq_wr,
     input [1:0] i_mreq_wsize,
     input i_mreq_aincr,
-    input [7:0] i_mreq_size,
+    input [7:0] i_mreq_wcount,
     input [31:0] i_mreq_addr,
     // Rx data stream (for write requests)
     input i_rx_valid,
@@ -246,7 +246,7 @@ module cmd_wb #(
         end else begin
             // Capture word count when idling
             if (state == ST_IDLE) begin
-                words_remaining <= i_mreq_size;
+                words_remaining <= i_mreq_wcount;
             end
             // Decrement word count when WB req is accepted and it's not the last word
             if (wb_req_ack && !last_word) begin

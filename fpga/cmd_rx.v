@@ -14,7 +14,7 @@ module cmd_rx (
     output o_mreq_wr,
     output [1:0] o_mreq_wsize,
     output o_mreq_aincr,
-    output [7:0] o_mreq_size,
+    output [7:0] o_mreq_wcount,
     output [31:0] o_mreq_addr
 );
 
@@ -129,7 +129,7 @@ module cmd_rx (
     reg [2:0] op;
     reg mreq_aincr;
     reg [1:0] mreq_wsize;
-    reg [7:0] mreq_size;
+    reg [7:0] mreq_wcount;
     reg [31:0] mreq_addr;
 
     //
@@ -145,7 +145,7 @@ module cmd_rx (
                 mreq_wsize <= i_rx_data[5:4];
             end
             ST_RECV_WCOUNT:
-                mreq_size <= i_rx_data;
+                mreq_wcount <= i_rx_data;
             ST_RECV_A0:
                 mreq_addr[7:0] <= i_rx_data;
             ST_RECV_A1:
@@ -165,7 +165,7 @@ module cmd_rx (
     assign o_mreq_wr = (op == CMD_OP_MWRITE) ? 1'b1 : 1'b0;
     assign o_mreq_wsize = mreq_wsize;
     assign o_mreq_aincr = mreq_aincr;
-    assign o_mreq_size = mreq_size;
+    assign o_mreq_wcount = mreq_wcount;
     assign o_mreq_addr = mreq_addr;
 
     //

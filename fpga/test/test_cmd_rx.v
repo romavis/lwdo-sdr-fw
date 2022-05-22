@@ -128,7 +128,7 @@ module test_cmd_rx;
     wire mreq_wr;
     wire [1:0] mreq_wsize;
     wire mreq_aincr;
-    wire [7:0] mreq_size;
+    wire [7:0] mreq_wcount;
     wire [31:0] mreq_addr;
 
     cmd_rx dut (
@@ -145,7 +145,7 @@ module test_cmd_rx;
         .i_mreq_ready(mreq_ready),
         .o_mreq_wr(mreq_wr),
         .o_mreq_wsize(mreq_wsize),
-        .o_mreq_size(mreq_size),
+        .o_mreq_wcount(mreq_wcount),
         .o_mreq_addr(mreq_addr)
     );
 

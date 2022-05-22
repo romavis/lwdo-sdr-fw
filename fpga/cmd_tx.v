@@ -12,7 +12,7 @@ module cmd_tx (
     input i_mreq_wr,
     input [1:0] i_mreq_wsize,
     input i_mreq_aincr,
-    input [7:0] i_mreq_size,
+    input [7:0] i_mreq_wcount,
     input [31:0] i_mreq_addr
 );
 
@@ -113,7 +113,7 @@ module cmd_tx (
     reg r_mreq_wr;
     reg r_mreq_aincr;
     reg [1:0] r_mreq_wsize;
-    reg [7:0] r_mreq_size;
+    reg [7:0] r_mreq_wcount;
     reg [31:0] r_mreq_addr;
 
     always @(posedge i_clk) begin
@@ -121,7 +121,7 @@ module cmd_tx (
             r_mreq_wr <= i_mreq_wr;
             r_mreq_aincr <= i_mreq_aincr;
             r_mreq_wsize <= i_mreq_wsize;
-            r_mreq_size <= i_mreq_size;
+            r_mreq_wcount <= i_mreq_wcount;
             r_mreq_addr <= i_mreq_addr;
         end
     end
@@ -148,7 +148,7 @@ module cmd_tx (
             tx_data[5:4] = r_mreq_wsize;
         end
         ST_SEND_WCOUNT:
-            tx_data = r_mreq_size;
+            tx_data = r_mreq_wcount;
         ST_SEND_A0:
             tx_data = r_mreq_addr[7:0];
         ST_SEND_A1:
