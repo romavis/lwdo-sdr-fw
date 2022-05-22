@@ -119,6 +119,8 @@ endmodule
 module test_cmd_wb;
     
     localparam WB_ADDR_WIDTH = 6;
+    localparam EMREQ_NUM = 2;
+    localparam EMREQ_IBITS = 1;
 
     `include "cmd_defines.vh"
 
@@ -141,16 +143,6 @@ module test_cmd_wb;
         .o_wb_data(wb_data_r)
     );
 
-    // wb_dummy dummy (
-    //     .i_clk(clk),
-    //     // wb
-    //     .i_wb_cyc(wb_cyc),
-    //     .i_wb_stb(wb_stb),
-    //     .o_wb_stall(wb_stall),
-    //     .o_wb_ack(wb_ack),
-    //     .o_wb_data(wb_data_r)
-    // );
-
     stream_gen rx_stream (
         .i_clk(clk),
         .i_enable(1'b1),
@@ -160,7 +152,9 @@ module test_cmd_wb;
     );
 
     wb_ctrl_port #(
-        .WB_ADDR_WIDTH(WB_ADDR_WIDTH)
+        .WB_ADDR_WIDTH(WB_ADDR_WIDTH),
+        .EMREQ_NUM(EMREQ_NUM),
+        .EMREQ_IBITS(EMREQ_IBITS)
     ) dut (
         .i_clk(clk),
         .i_rst(rst),
@@ -183,8 +177,27 @@ module test_cmd_wb;
         // tx
         .i_tx_ready(tx_ready),
         .o_tx_data(tx_data),
-        .o_tx_valid(tx_valid)
+        .o_tx_valid(tx_valid),
+        // EMREQs
+        .i_emreq_valid({EMREQ_NUM{1'b1}}),
+        .i_emreq_wr(1'b0),
+        .i_emreq_aincr(1'b0),
+        .i_emreq_wsize(CMD_WSIZE_4BYTE),
+        .i_emreq_wcount(2),
+        .i_emreq_addr(32'h12345678)
     );
+
+    // localparam NREQS = 3;
+    // localparam IREQ_BITS = 2;
+
+    // mreq_arbiter #(
+    //     .NREQS(NREQS),
+    //     .IREQ_BITS(IREQ_BITS)
+    // ) arb (
+    //     .i_clk(clk),
+    //     .i_rst(rst),
+    //     .i_mreqs_valid({1'b1, 1'b1, })
+    // );
 
     reg clk = 0;
     reg rst = 0;

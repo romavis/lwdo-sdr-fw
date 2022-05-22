@@ -30,6 +30,7 @@ V_MODULES := \
 	$(SRC_DIR)/cmd_tx.v \
 	$(SRC_DIR)/cmd_wb.v \
 	$(SRC_DIR)/mreq_seq2.v \
+	$(SRC_DIR)/mreq_arbiter.v \
 	$(SRC_DIR)/wb_ctrl_port.v \
 	$(SRC_DIR)/wb_mem.v \
 	$(SRC_DIR)/wb_mem_dly.v \
