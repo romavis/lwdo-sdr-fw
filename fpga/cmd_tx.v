@@ -2,145 +2,173 @@ module cmd_tx (
     // Clock (posedge) and sync reset
     input i_clk,
     input i_rst,
-    // Output command stream
-    output [7:0] o_st_data,
-    output o_st_valid,
-    input i_st_ready,
-    // Memory request input (MREAD, MWRITE)
+    // Output byte stream
+    output [7:0] o_tx_data,
+    output o_tx_valid,
+    input i_tx_ready,
+    // MREQ bus
     input i_mreq_valid,
-    input i_mreq_ready,
+    output o_mreq_ready,
     input i_mreq_wr,
     input [1:0] i_mreq_wsize,
     input i_mreq_aincr,
     input [7:0] i_mreq_size,
-    input [31:0] i_mreq_addr,
-    // Passing mreq_valid through cmd_tx stalls MREQ execution till cmd_tx is ready to accept tx_data
-    output o_mreq_valid,
-    // Tx data stream interface - transfers data bytes for MREAD requests
-    // NOTE: it is responsibility of request handling block to always provide expected number of data bytes. `cmd_tx` module itself does not count data bytes.
-    input i_tx_data_valid,
-    input [7:0] i_tx_data,
-    output o_tx_data_ready
+    input [31:0] i_mreq_addr
 );
 
     `include "cmd_defines.vh"
 
-    crc8 crc (
-        .i_data(r_st_data),
-        .i_crc(r_crc_in),
-        .o_crc(crc_out)
-    );
+    //
+    // SysCon
+    //
+    wire clk;
+    wire rst;
+    assign clk = i_clk;
+    assign rst = i_rst;
 
-    // State machine states
-    localparam ST_WAITFORSTART = 2'd0;
-    localparam ST_SEND_HEADER = 2'd1;
-    localparam ST_HANDLE_MREQ = 2'd2;
+    //
+    // Tx stream success flag
+    //
+    wire tx_ack;
+    assign tx_ack = i_tx_ready && o_tx_valid;
 
-    // Command parser state machine
-    reg [1:0] r_state;
-    reg [7:0] r_crc_in;
-    wire [7:0] crc_out;
-    reg [2:0] r_header_bidx;
-    // Output FIFO data
-    reg [7:0] r_st_data;
-    reg r_st_valid;
+    //
+    // State machine
+    //
+    reg [3:0] state;
+    reg [3:0] state_next;
+    wire state_change;
+    assign state_change = (state != state_next) ? 1'b1 : 1'b0;
 
-    // Transfer success flag on i_st, o_mreq
-    wire st_completed;
-    assign st_completed = i_st_ready && o_st_valid;
-    wire mreq_completed;
-    assign mreq_completed = i_mreq_valid && i_mreq_ready;
+    localparam ST_IDLE = 4'd0;
+    localparam ST_SEND_START = 4'd1;
+    localparam ST_SEND_OP = 4'd2;
+    localparam ST_SEND_WCOUNT = 4'd3;
+    localparam ST_SEND_A0 = 4'd4;
+    localparam ST_SEND_A1 = 4'd5;
+    localparam ST_SEND_A2 = 4'd6;
+    localparam ST_SEND_A3 = 4'd7;
+    localparam ST_SEND_CRC = 4'd8;
 
-    wire mreq_active;
-    assign mreq_active = (r_state == ST_HANDLE_MREQ);
-
-    // -----
-    // Output signals
-    // -----
-
-    assign o_mreq_valid = i_mreq_valid && mreq_active;
-
-    // Direct combinational link from i_st to o_wr_data
-    // mreq_active=0: o_st_data is controlled by internal logic, i_tx_data is not ready
-    // mreq_active=1: o_st_data is controlled by i_tx_data, o_tx_data_ready is i_st_ready
-    assign o_tx_data_ready = mreq_active ? i_st_ready : 1'b0;
-    assign o_st_data = mreq_active ? i_tx_data : r_st_data;
-    assign o_st_valid = mreq_active ? i_tx_data_valid : r_st_valid;
-
-    always @(posedge i_clk) begin
-        if (i_rst) begin
-
-            r_state <= ST_WAITFORSTART;
-            r_crc_in <= 8'd0;
-            r_header_bidx <= 3'd0;
-            r_st_data <= 8'd0;
-            r_st_valid <= 8'd0;
-
+    always @(posedge clk) begin
+        if (rst) begin
+            state <= ST_IDLE;
         end else begin
-
-            r_st_valid <= 1'b0;
-
-            case (r_state)
-
-                ST_WAITFORSTART: begin
-                    // Initialize state machine registers
-                    r_header_bidx <= 3'd0;
-                    r_crc_in <= 8'h00;
-
-                    if (i_mreq_valid) begin
-                        r_state <= ST_SEND_HEADER;
-                        // Already feed first byte of data
-                        r_st_valid <= 1'b1;
-                        r_st_data <= CMD_TX_START;
-                    end
-                end
-
-                ST_SEND_HEADER: begin
-                    r_st_valid <= 1'b1;
-                    if (st_completed) begin
-                        r_header_bidx <= r_header_bidx + 3'd1;
-                        r_crc_in <= crc_out;
-
-                        case (r_header_bidx)
-                            CMD_TX_BIDX_OP: begin
-                                r_st_data <= 8'd0;
-                                r_st_data[0] <= i_mreq_wr;
-                                r_st_data[3] <= i_mreq_aincr;
-                                r_st_data[5:3] <= i_mreq_wsize;
-                            end
-
-                            CMD_TX_BIDX_SZ: r_st_data <= i_mreq_size;
-
-                            CMD_TX_BIDX_A0: r_st_data <= i_mreq_addr[7:0];
-                            CMD_TX_BIDX_A1: r_st_data <= i_mreq_addr[15:8];
-                            CMD_TX_BIDX_A2: r_st_data <= i_mreq_addr[23:16];
-                            CMD_TX_BIDX_A3: r_st_data <= i_mreq_addr[31:24];
-
-                            CMD_TX_BIDX_CRC: r_st_data <= crc_out;
-
-                            CMD_TX_BIDX_LAST: begin
-                                r_state <= ST_HANDLE_MREQ;
-                                r_st_valid <= 1'b0;
-                            end
-                            
-                            default: r_state <= ST_WAITFORSTART;
-                        endcase
-                    end
-                end
-
-                ST_HANDLE_MREQ: begin
-                    r_st_valid <= 1'b0;
-                    if (mreq_completed) begin
-                        // Finish request handling
-                        r_state <= ST_WAITFORSTART;
-                    end
-                end
-                
-                // All other states are invalid -> reset state machine
-                default: r_state <= ST_WAITFORSTART;
-            endcase
-
+            state <= state_next;
         end
     end
+
+    always @(*) begin
+        state_next = state;
+
+        case (state)
+        ST_IDLE:
+            state_next = i_mreq_valid ? ST_SEND_START : state;
+        ST_SEND_START:
+            state_next = tx_ack ? ST_SEND_OP : state;
+        ST_SEND_OP:
+            state_next = tx_ack ? ST_SEND_WCOUNT : state;
+        ST_SEND_WCOUNT:
+            state_next = tx_ack ? ST_SEND_A0 : state;
+        ST_SEND_A0:
+            state_next = tx_ack ? ST_SEND_A1 : state;
+        ST_SEND_A1:
+            state_next = tx_ack ? ST_SEND_A2 : state;
+        ST_SEND_A2:
+            state_next = tx_ack ? ST_SEND_A3 : state;
+        ST_SEND_A3:
+            state_next = tx_ack ? ST_SEND_CRC : state;
+        ST_SEND_CRC:
+            state_next = tx_ack ? ST_IDLE : state;
+        default:
+            state_next = ST_IDLE;
+        endcase
+    end
+
+    //
+    // CRC engine
+    //
+    reg [7:0] crc_prev;
+    wire [7:0] crc_in;
+    wire [7:0] crc;
+
+    crc8 crc_eng (
+        .i_data(tx_data),
+        .i_crc(crc_in),
+        .o_crc(crc)
+    );
+
+    always @(posedge clk) begin
+        if (tx_ack) begin
+            crc_prev <= crc;
+        end
+    end
+
+    assign crc_in = (state == ST_SEND_START) ? 8'd0 : crc_prev;
+
+    //
+    // MREQ parameters cache
+    //
+
+    reg r_mreq_wr;
+    reg r_mreq_aincr;
+    reg [1:0] r_mreq_wsize;
+    reg [7:0] r_mreq_size;
+    reg [31:0] r_mreq_addr;
+
+    always @(posedge i_clk) begin
+        if (state == ST_IDLE && state_change) begin
+            r_mreq_wr <= i_mreq_wr;
+            r_mreq_aincr <= i_mreq_aincr;
+            r_mreq_wsize <= i_mreq_wsize;
+            r_mreq_size <= i_mreq_size;
+            r_mreq_addr <= i_mreq_addr;
+        end
+    end
+
+    //
+    // Tx data & valid driver
+    //
+    reg [7:0] tx_data;
+    reg tx_valid;
+
+    assign o_tx_data = tx_data;
+    assign o_tx_valid = tx_valid;
+
+    always @(*) begin
+        tx_valid = 1'b1;
+
+        case (state)
+        ST_SEND_START:
+            tx_data = CMD_TX_START;
+        ST_SEND_OP: begin
+            tx_data = 8'd0;
+            tx_data[2:0] = r_mreq_wr ? CMD_OP_MWRITE : CMD_OP_MREAD;
+            tx_data[3] = r_mreq_aincr;
+            tx_data[5:4] = r_mreq_wsize;
+        end
+        ST_SEND_WCOUNT:
+            tx_data = r_mreq_size;
+        ST_SEND_A0:
+            tx_data = r_mreq_addr[7:0];
+        ST_SEND_A1:
+            tx_data = r_mreq_addr[15:8];
+        ST_SEND_A2:
+            tx_data = r_mreq_addr[23:16];
+        ST_SEND_A3:
+            tx_data = r_mreq_addr[31:24];
+        ST_SEND_CRC:
+            tx_data = crc_in;
+        default: begin
+            tx_data = 8'd0;
+            tx_valid = 1'b0;
+        end
+        endcase
+    end
+
+    //
+    // MREQ READY driver
+    //
+    assign o_mreq_ready = (state == ST_SEND_CRC && state_next == ST_IDLE && tx_ack) ? 1'b1 : 1'b0;
 
 endmodule

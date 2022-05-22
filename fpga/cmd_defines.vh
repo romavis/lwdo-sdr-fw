@@ -5,6 +5,11 @@
 localparam CMD_RX_START = 8'hA3;
 localparam CMD_TX_START = 8'hA5;
 
+// Operation codes
+localparam CMD_OP_MREAD = 3'b000;
+localparam CMD_OP_MWRITE = 3'b001;
+localparam CMD_OP_STALL = 3'b010;
+
 // Access sizes
 localparam CMD_WSIZE_1BYTE = 2'b00;
 localparam CMD_WSIZE_2BYTE = 2'b01;

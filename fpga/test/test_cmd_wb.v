@@ -1,3 +1,5 @@
+`timescale 1 ns/10 ps  // time-unit = 1 ns, precision = 10 ps
+
 module stream_gen (
     input i_clk,
     input i_enable,
@@ -31,10 +33,10 @@ module test_cmd_wb;
 
     `include "cmd_defines.vh"
 
-    wb_mem #(
-        .WB_ADDR_WIDTH(WB_ADDR_WIDTH)
-        // .STALL_WS(0),
-        // .ACK_WS(0)
+    wb_mem_dly #(
+        .WB_ADDR_WIDTH(WB_ADDR_WIDTH),
+        .STALL_WS(0),
+        .ACK_WS(0)
     ) mem (
         .i_clk(clk),
         .i_rst(rst),
@@ -132,7 +134,9 @@ module test_cmd_wb;
 
     always #5 clk = ~clk;
 
+    reg mreq_ready_past = 0;
     always @(posedge clk) begin
+        mreq_ready_past <= mreq_ready;
         if (rx_valid && rx_ready) begin
             $display("Rx: CMD_WB consumed byte 0x%02x", rx_data);
         end
@@ -140,7 +144,7 @@ module test_cmd_wb;
             $display("Tx: CMD_WB produced byte 0x%02x", tx_data);
         end
         if (mreq_valid && mreq_ready) begin
-            $display("MREQ: CMD_WB accepted new request: %s wsize=%1d addr=0x%08x aincr=%b size=%1d",
+            $display("MREQ: CMD_WB acknowledged request: %s wsize=%1d addr=0x%08x aincr=%b size=%1d",
                 mreq_wr ? "WRITE" : "READ",
                 mreq_wsize == CMD_WSIZE_4BYTE ? 4 : mreq_wsize == CMD_WSIZE_2BYTE ? 2 : mreq_wsize == CMD_WSIZE_1BYTE ? 1 : 0,
                 mreq_addr,
@@ -169,10 +173,10 @@ module test_cmd_wb;
         mreq_size <= 8'd2;  // 2 words
 
         mreq_valid <= 1'b1;
-        repeat (1) @(posedge clk);
+        @(posedge clk); wait(mreq_ready) @(posedge clk);
         mreq_valid <= 1'b0;
 
-        repeat (20) @(posedge clk);
+        repeat (10) @(posedge clk);
 
         // --REQ-- Write something
         mreq_wr <= 1'b1;
@@ -182,43 +186,41 @@ module test_cmd_wb;
         mreq_size <= 8'd2;  // 2 words
 
         mreq_valid <= 1'b1;
-        repeat (1) @(posedge clk);
+        @(posedge clk); wait(mreq_ready) @(posedge clk);
         mreq_valid <= 1'b0;
 
-        repeat (25) @(posedge clk);
+        repeat (10) @(posedge clk);
 
         // --REQ-- Read something
         mreq_wr <= 1'b0;
         mreq_wsize <= CMD_WSIZE_1BYTE;
 
         mreq_valid <= 1'b1;
-        repeat (1) @(posedge clk);
-        mreq_valid <= 1'b0;
 
         repeat (10) @(posedge clk);
         // unblock tx
         tx_ready <= 1'b1;
-        repeat (20) @(posedge clk);
+        @(posedge clk); wait(mreq_ready) @(posedge clk);
+        mreq_valid <= 1'b0;
+
+        repeat(10) @(posedge clk);
 
         // --REQ-- Read something
         mreq_wr <= 1'b0;
         mreq_wsize <= CMD_WSIZE_2BYTE;
 
         mreq_valid <= 1'b1;
-        repeat (1) @(posedge clk);
+        @(posedge clk); wait(mreq_ready) @(posedge clk);
         mreq_valid <= 1'b0;
 
-        repeat (10) @(posedge clk);
-        // unblock tx
-        tx_ready <= 1'b1;
-        repeat (20) @(posedge clk);
+        repeat(10) @(posedge clk);
 
         // --REQ-- Read something
         mreq_wr <= 1'b0;
         mreq_wsize <= CMD_WSIZE_4BYTE;
 
         mreq_valid <= 1'b1;
-        repeat (1) @(posedge clk);
+        @(posedge clk); wait(mreq_ready) @(posedge clk);
         mreq_valid <= 1'b0;
 
         repeat (20) @(posedge clk);

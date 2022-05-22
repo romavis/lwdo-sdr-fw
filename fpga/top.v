@@ -43,7 +43,7 @@ module top (
     output ftdi_fifo_rd_n,
     input ftdi_fifo_txe_n,
     input ftdi_fifo_rxf_n,
-    inout [7:0] ftdi_fifo_d,
+    inout [7:0] ftdi_fifo_d
 );
 
     localparam WB_ADDR_WIDTH = 10;
@@ -131,7 +131,7 @@ module top (
         .PLLOUTCORE (adc_pll_out),
         .LOCK (adc_pll_lock),
         .RESETB(~rst),
-        .BYPASS(1'b0),
+        .BYPASS(1'b0)
     );
 
     // Generate clock on the pin
@@ -197,7 +197,7 @@ module top (
         // Data
         .o_ready(adc1_rdy),
         .o_sample_a(adc1_data_a_imm),
-        .o_sample_b(adc1_data_b_imm),
+        .o_sample_b(adc1_data_b_imm)
     );
 
     ad7357if adc2 (
@@ -212,7 +212,7 @@ module top (
         // Data
         .o_ready(adc2_rdy),
         .o_sample_a(adc2_data_a_imm),
-        .o_sample_b(adc2_data_b_imm),
+        .o_sample_b(adc2_data_b_imm)
     );
 
     // ------------------
@@ -252,12 +252,12 @@ module top (
     wire ftdi_fifo_d_oe;
 
     SB_IO #(
-        .PIN_TYPE(6'b 1010_01),
+        .PIN_TYPE(6'b 1010_01)
     ) ftdi_fifo_data_pins [7:0] (
         .PACKAGE_PIN(ftdi_fifo_d),
         .OUTPUT_ENABLE(ftdi_fifo_d_oe),
         .D_OUT_0(ftdi_fifo_d_out),
-        .D_IN_0(ftdi_fifo_d_in),
+        .D_IN_0(ftdi_fifo_d_in)
     );
 
     // ------------------------

@@ -17,7 +17,7 @@ module ad7357if (
   // External interface pins connected to AD7357
   output  o_if_cs_n,
   input   i_if_sdata_a,
-  input   i_if_sdata_b,
+  input   i_if_sdata_b
 );
 
   reg   [13:0]  r_data_a;

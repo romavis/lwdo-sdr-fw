@@ -1,4 +1,4 @@
-module wb_mem #(
+module wb_mem_dly #(
     parameter WB_ADDR_WIDTH = 6,
     parameter STALL_WS=2,
     parameter ACK_WS=2

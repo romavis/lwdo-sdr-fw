@@ -1,7 +1,9 @@
 # Makefile template borrowed from https://gist.github.com/DurandA/15c83f37ee64b185801f88fbe0a0f25c
 
-OUT_DIR = out
+OUT_DIR = ./out
+OUT_TEST_DIR = $(OUT_DIR)/test
 SRC_DIR = .
+TEST_DIR = $(SRC_DIR)/test
 
 PNRGUI ?= 0
 PROJ = top
@@ -27,11 +29,44 @@ V_MODULES := \
 	$(SRC_DIR)/cmd_rx.v \
 	$(SRC_DIR)/cmd_tx.v \
 	$(SRC_DIR)/cmd_wb.v \
-	$(SRC_DIR)/wb_ft245sync.v \
+	$(SRC_DIR)/mreq_seq2.v \
+	$(SRC_DIR)/wb_ctrl_port.v \
 	$(SRC_DIR)/wb_mem.v \
+	$(SRC_DIR)/wb_mem_dly.v \
 	$(SRC_DIR)/wb_dummy.v
 
+V_INCLUDE_PATHS := \
+	$(SRC_DIR)
 
+TESTS := \
+	test_cmd_wb \
+	test_cmd_tx \
+	test_cmd_rx \
+	test_wb_ctrl_port
+
+
+# Directories
+$(OUT_DIR):
+	mkdir -p $(OUT_DIR)
+
+$(OUT_TEST_DIR):
+	mkdir -p $(OUT_TEST_DIR)
+
+# Tests
+.PHONY: test
+test: $(TESTS)
+
+.PHONY: $(TESTS)
+$(TESTS): test_%: $(OUT_TEST_DIR)/test_% $(OUT_TEST_DIR)/test_%.vcd
+
+$(OUT_TEST_DIR)/test_%: $(TEST_DIR)/test_%.v $(OUT_TEST_DIR) $(V_MODULES) 
+	iverilog -o $@ $< $(foreach mod,$(V_MODULES), -l $(mod)) $(foreach path,$(V_INCLUDE_PATHS),-I $(path))
+
+$(OUT_TEST_DIR)/test_%.vcd: $(OUT_TEST_DIR)/test_%
+	@echo "Running test: $<"
+	cd $(OUT_TEST_DIR); $(abspath $<)
+
+# Bitstream
 $(OUT_DIR)/top.json: $(V_MODULES)
 	yosys -p 'synth_ice40 -top $(PROJ) -json $@' $^
 
@@ -60,4 +95,6 @@ $(OUT_DIR)/%_syntb.vcd: $(OUT_DIR)/%_syntb
 	vvp -N $< +vcd=$@
 
 clean:
+	rm -f $(foreach test,$(TESTS),$(OUT_TEST_DIR)/$(test).vcd)
+	rm -f $(foreach test,$(TESTS),$(OUT_TEST_DIR)/$(test))
 	rm -f $(OUT_DIR)/$(PROJ).blif $(OUT_DIR)/$(PROJ).asc $(OUT_DIR)/$(PROJ).rpt $(OUT_DIR)/$(PROJ).bin

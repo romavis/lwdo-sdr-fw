@@ -15,7 +15,7 @@ module cmd_wb #(
     output [31:0] o_wb_data,
     output [3:0] o_wb_sel,
     input [31:0] i_wb_data,
-    // MREQ input
+    // MREQ bus
     input i_mreq_valid,
     output o_mreq_ready,
     input i_mreq_wr,
@@ -34,6 +34,14 @@ module cmd_wb #(
 );
     
     `include "cmd_defines.vh"
+
+    //
+    // SysCon
+    //
+    wire clk;
+    wire rst;
+    assign clk = i_clk;
+    assign rst = i_rst;
 
     //
     // Wishbone transfer status
@@ -65,8 +73,8 @@ module cmd_wb #(
     localparam ST_WB_REQ_WAIT = 3'd3;
     localparam ST_WB_WAIT_ACK = 3'd4;
 
-    always @(posedge i_clk) begin
-        if (i_rst) begin
+    always @(posedge clk) begin
+        if (rst) begin
             state <= ST_IDLE;
         end else begin
             state <= state_next;
@@ -125,6 +133,11 @@ module cmd_wb #(
     end
 
     //
+    // MREQ READY generator
+    //
+    assign o_mreq_ready = (state_next == ST_IDLE && state_change) ? 1'b1 : 1'b0;
+
+    //
     // Drive outputs
     //
     assign o_wb_cyc = (state == ST_WB_REQ_WAIT || state == ST_WB_WAIT_ACK) ? 1'b1 : 1'b0;
@@ -133,7 +146,6 @@ module cmd_wb #(
     assign o_wb_addr = wb_addr;
     assign o_wb_data = {wbio_data[3], wbio_data[2], wbio_data[1], wbio_data[0]};
     assign o_wb_sel = ~wbio_byte_sel_n;
-    assign o_mreq_ready = (state == ST_IDLE) ? 1'b1 : 1'b0;
     assign o_rx_ready = (state == ST_CONSTRUCT_WORD) ? 1'b1 : 1'b0;
     assign o_tx_valid = (state == ST_DECONSTRUCT_WORD) ? 1'b1 : 1'b0;
     assign o_tx_data = wbio_data[wbio_byte_ctr];
@@ -154,9 +166,9 @@ module cmd_wb #(
         endcase
     end
 
-    always @(posedge i_clk) begin
+    always @(posedge clk) begin
         // Initialize counters and data register
-        if (i_rst) begin
+        if (rst) begin
 
             wbio_byte_ctr <= 2'd0;
             wbio_byte_sel_n <= 4'b1111;
@@ -206,8 +218,8 @@ module cmd_wb #(
     //
     reg [WB_ADDR_WIDTH-1:0] wb_addr;
 
-    always @(posedge i_clk) begin
-        if (i_rst) begin
+    always @(posedge clk) begin
+        if (rst) begin
             wb_addr <= 30'd0;
         end else begin
             // Load address from MREQ
@@ -228,8 +240,8 @@ module cmd_wb #(
     wire last_word;
     assign last_word = (words_remaining == 8'd0) ? 1'b1 : 1'b0;
 
-    always @(posedge i_clk) begin
-        if (i_rst) begin
+    always @(posedge clk) begin
+        if (rst) begin
             words_remaining <= 8'd0;
         end else begin
             // Capture word count when idling
@@ -250,8 +262,8 @@ module cmd_wb #(
     reg r_mreq_aincr;
     reg [1:0] r_mreq_wsize;
 
-    always @(posedge i_clk) begin
-        if (i_rst) begin
+    always @(posedge clk) begin
+        if (rst) begin
             r_mreq_wr <= 1'b0;
             r_mreq_aincr <= 1'b0;
             r_mreq_wsize <= 2'b0;
