@@ -1,7 +1,6 @@
 module wb_ctrl_port #(
     parameter WB_ADDR_WIDTH = 30,
-    parameter EMREQ_NUM = 1,
-    parameter EMREQ_IBITS = 1
+    parameter NUM_EMREQS = 1
 )
 (
     input i_clk,
@@ -27,15 +26,11 @@ module wb_ctrl_port #(
     // Error / debug
     output o_err_crc,
     // EMREQ - External MREQ input to the MREQ arbiter
-    input [EMREQ_NUM-1:0] i_emreq_valid,
-    output [EMREQ_NUM-1:0] o_emreq_ready,
-    output [EMREQ_IBITS-1:0] o_emreq_sel,
-    input i_emreq_wr,
-    input i_emreq_aincr,
-    input [1:0] i_emreq_wsize,
-    input [7:0] i_emreq_wcount,
-    input [31:0] i_emreq_addr
+    input [NUM_EMREQS-1:0] i_emreqs_valid,
+    output [NUM_EMREQS-1:0] o_emreqs_ready,
+    input [NUM_EMREQS*MREQ_NBIT-1:0] i_emreqs
 );
+    `include "mreq_defines.vh"
 
     // SYSCON
     wire rst;
@@ -51,20 +46,12 @@ module wb_ctrl_port #(
     // CMD_RX MREQ bus
     wire crx_mreq_valid;
     wire crx_mreq_ready;
-    wire crx_mreq_wr;
-    wire [1:0] crx_mreq_wsize;
-    wire crx_mreq_aincr;
-    wire [7:0] crx_mreq_wcount;
-    wire [31:0] crx_mreq_addr;
+    wire [MREQ_NBIT-1:0] crx_mreq;
 
     // MREQ selected for execution
     wire exec_mreq_valid;
     wire exec_mreq_ready;
-    wire exec_mreq_wr;
-    wire [1:0] exec_mreq_wsize;
-    wire exec_mreq_aincr;
-    wire [7:0] exec_mreq_wcount;
-    wire [31:0] exec_mreq_addr;
+    wire [MREQ_NBIT-1:0] exec_mreq;
 
     // CMD_WB Rx and Tx streams
     wire [7:0] cwb_tx_data;
@@ -100,11 +87,7 @@ module wb_ctrl_port #(
         //
         .o_mreq_valid(crx_mreq_valid),
         .i_mreq_ready(crx_mreq_ready),
-        .o_mreq_wr(crx_mreq_wr),
-        .o_mreq_wsize(crx_mreq_wsize),
-        .o_mreq_aincr(crx_mreq_aincr),
-        .o_mreq_wcount(crx_mreq_wcount),
-        .o_mreq_addr(crx_mreq_addr)
+        .o_mreq(crx_mreq)
     );
 
     // CMD_TX
@@ -118,11 +101,7 @@ module wb_ctrl_port #(
         //
         .i_mreq_valid(ctx_mreq_valid),
         .o_mreq_ready(ctx_mreq_ready),
-        .i_mreq_wr(exec_mreq_wr),
-        .i_mreq_wsize(exec_mreq_wsize),
-        .i_mreq_aincr(exec_mreq_aincr),
-        .i_mreq_wcount(exec_mreq_wcount),
-        .i_mreq_addr(exec_mreq_addr)
+        .i_mreq(exec_mreq)
     );
 
     // CMD_WB
@@ -144,11 +123,7 @@ module wb_ctrl_port #(
         // mreq
         .i_mreq_valid(cwb_mreq_valid),
         .o_mreq_ready(cwb_mreq_ready),
-        .i_mreq_wr(exec_mreq_wr),
-        .i_mreq_wsize(exec_mreq_wsize),
-        .i_mreq_aincr(exec_mreq_aincr),
-        .i_mreq_wcount(exec_mreq_wcount),
-        .i_mreq_addr(exec_mreq_addr),
+        .i_mreq(exec_mreq),
         // rx
         .o_rx_ready(cwb_rx_ready),
         .i_rx_data(cwb_rx_data),
@@ -160,67 +135,32 @@ module wb_ctrl_port #(
     );
 
     // EMREQ / MREQ arbiter
-    wire [EMREQ_NUM:0] arb_mreqs_valid;
-    wire [EMREQ_NUM:0] arb_mreqs_ready;
-    wire [EMREQ_IBITS:0] arb_mreq_sel;
-    reg [EMREQ_IBITS-1:0] emreq_sel;
-    reg arb_mreq_wr;
-    reg arb_mreq_aincr;
-    reg [1:0] arb_mreq_wsize;
-    reg [7:0] arb_mreq_wcount;
-    reg [31:0] arb_mreq_addr;
+    wire [NUM_EMREQS:0] arb_mreqs_valid;
+    wire [NUM_EMREQS:0] arb_mreqs_ready;
+    wire [MREQ_NBIT*(1+NUM_EMREQS)-1:0] arb_mreqs;
 
     mreq_arbiter #(
-        .REQS_NUM(1 + EMREQ_NUM),
-        .REQS_IBITS(1 + EMREQ_IBITS) // hope synthesizer will remove this extra bit if it's not really needed
+        .NUM_REQS(1 + NUM_EMREQS)
     ) arb (
         .i_clk(clk),
         .i_rst(rst),
         //
         .i_mreqs_valid(arb_mreqs_valid),
         .o_mreqs_ready(arb_mreqs_ready),
-        //
-        .o_mreq_sel(arb_mreq_sel),
-        .i_mreq_wr(arb_mreq_wr),
-        .i_mreq_aincr(arb_mreq_aincr),
-        .i_mreq_wsize(arb_mreq_wsize),
-        .i_mreq_wcount(arb_mreq_wcount),
-        .i_mreq_addr(arb_mreq_addr),
+        .i_mreqs(arb_mreqs),
         //
         .o_mreq_valid(exec_mreq_valid),
         .i_mreq_ready(exec_mreq_ready),
-        .o_mreq_wr(exec_mreq_wr),
-        .o_mreq_aincr(exec_mreq_aincr),
-        .o_mreq_wsize(exec_mreq_wsize),
-        .o_mreq_wcount(exec_mreq_wcount),
-        .o_mreq_addr(exec_mreq_addr)
+        .o_mreq(exec_mreq)
     );
 
     // Route arbiter MREQ inputs:
-    //  MREQ index 0~EMREQ_NUM-1 are EMREQs from outside
-    //  MREQ index EMREQ_NUM is our own MREQ from CMD_RX
-    assign arb_mreqs_valid = {crx_mreq_valid, i_emreq_valid};
-    assign o_emreq_ready = arb_mreqs_ready[EMREQ_NUM-1:0];
-    assign crx_mreq_ready = arb_mreqs_ready[EMREQ_NUM];
-    assign o_emreq_sel = emreq_sel;
-
-    always @(*) begin
-        if (arb_mreq_sel == EMREQ_NUM) begin
-            emreq_sel = 'd0;
-            arb_mreq_wr = crx_mreq_wr;
-            arb_mreq_aincr = crx_mreq_aincr;
-            arb_mreq_wsize = crx_mreq_wsize;
-            arb_mreq_wcount = crx_mreq_wcount;
-            arb_mreq_addr = crx_mreq_addr;
-        end else begin
-            emreq_sel = arb_mreq_sel;
-            arb_mreq_wr = i_emreq_wr;
-            arb_mreq_aincr = i_emreq_aincr;
-            arb_mreq_wsize = i_emreq_wsize;
-            arb_mreq_wcount = i_emreq_wcount;
-            arb_mreq_addr = i_emreq_addr;
-        end
-    end
+    //  MREQ index 0~NUM_EMREQS-1 are EMREQs from outside
+    //  MREQ index NUM_EMREQS is our own MREQ from CMD_RX
+    assign arb_mreqs_valid = {crx_mreq_valid, i_emreqs_valid};
+    assign arb_mreqs = {crx_mreq, i_emreqs};
+    assign o_emreqs_ready = arb_mreqs_ready[NUM_EMREQS-1:0];
+    assign crx_mreq_ready = arb_mreqs_ready[NUM_EMREQS];
     
     // Rx stream to CRX / CWB switch
     wire rx_conn_cwb;
@@ -252,7 +192,7 @@ module wb_ctrl_port #(
 
     // Connect MREQ to CMD_WB and CMD_TX
     wire exec_cwb_then_ctx;
-    assign exec_cwb_then_ctx = exec_mreq_wr;
+    assign exec_cwb_then_ctx = exec_mreq[MREQ_WR_OFS];
 
     assign cwb_mreq_valid = exec_cwb_then_ctx ? exec1_mreq_valid : exec2_mreq_valid;
     assign ctx_mreq_valid = exec_cwb_then_ctx ? exec2_mreq_valid : exec1_mreq_valid;

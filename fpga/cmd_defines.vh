@@ -1,6 +1,3 @@
-// `ifndef CMD_DEFINES_VH_
-// `define CMD_DEFINES_VH_
-
 // Start byte
 localparam CMD_RX_START = 8'hA3;
 localparam CMD_TX_START = 8'hA5;
@@ -10,10 +7,10 @@ localparam CMD_OP_MREAD = 3'b000;
 localparam CMD_OP_MWRITE = 3'b001;
 localparam CMD_OP_STALL = 3'b010;
 
-// Access sizes
-localparam CMD_WSIZE_1BYTE = 2'b00;
-localparam CMD_WSIZE_2BYTE = 2'b01;
-localparam CMD_WSIZE_4BYTE = 2'b10;
+// Access sizes - WSIZE - see MREQ_WSIZE_VAL_* for that
+// localparam CMD_WSIZE_1BYTE = 2'b00;
+// localparam CMD_WSIZE_2BYTE = 2'b01;
+// localparam CMD_WSIZE_4BYTE = 2'b10;
 
 // Indices of request header bytes
 localparam CMD_RX_BIDX_OP = 3'd0;
@@ -34,5 +31,3 @@ localparam CMD_TX_BIDX_A3 = 3'd5;
 localparam CMD_TX_BIDX_CRC = 3'd6;
 localparam CMD_TX_BIDX_LAST = 3'd7;
 
-
-// `endif

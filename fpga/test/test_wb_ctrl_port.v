@@ -120,9 +120,9 @@ module test_cmd_wb;
     
     localparam WB_ADDR_WIDTH = 6;
     localparam EMREQ_NUM = 2;
-    localparam EMREQ_IBITS = 1;
 
     `include "cmd_defines.vh"
+    `include "mreq_defines.vh"
 
     wb_mem_dly #(
         .WB_ADDR_WIDTH(WB_ADDR_WIDTH),
@@ -153,8 +153,7 @@ module test_cmd_wb;
 
     wb_ctrl_port #(
         .WB_ADDR_WIDTH(WB_ADDR_WIDTH),
-        .EMREQ_NUM(EMREQ_NUM),
-        .EMREQ_IBITS(EMREQ_IBITS)
+        .NUM_EMREQS(EMREQ_NUM)
     ) dut (
         .i_clk(clk),
         .i_rst(rst),
@@ -179,12 +178,11 @@ module test_cmd_wb;
         .o_tx_data(tx_data),
         .o_tx_valid(tx_valid),
         // EMREQs
-        .i_emreq_valid({EMREQ_NUM{1'b1}}),
-        .i_emreq_wr(1'b0),
-        .i_emreq_aincr(1'b0),
-        .i_emreq_wsize(CMD_WSIZE_4BYTE),
-        .i_emreq_wcount(2),
-        .i_emreq_addr(32'h12345678)
+        .i_emreqs_valid({EMREQ_NUM{1'b1}}),
+        .i_emreqs({
+            pack_mreq(1'b0, 1'b0, MREQ_WSIZE_VAL_4BYTE, 2, 32'hFEEDCEEF),
+            pack_mreq(1'b0, 1'b0, MREQ_WSIZE_VAL_2BYTE, 3, 32'hDEADBEEF)
+            })
     );
 
     // localparam NREQS = 3;

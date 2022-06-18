@@ -11,14 +11,12 @@ module cmd_rx (
     // MREQ output 
     output o_mreq_valid,
     input i_mreq_ready,
-    output o_mreq_wr,
-    output [1:0] o_mreq_wsize,
-    output o_mreq_aincr,
-    output [7:0] o_mreq_wcount,
-    output [31:0] o_mreq_addr
+    output [MREQ_NBIT-1:0] o_mreq
 );
-
+    
     `include "cmd_defines.vh"
+    `include "mreq_defines.vh"
+
 
     //
     // SysCon
@@ -162,11 +160,18 @@ module cmd_rx (
     // MREQ output
     //
     assign o_mreq_valid = (state == ST_ISSUE_MREQ) ? 1'b1 : 1'b0;
-    assign o_mreq_wr = (op == CMD_OP_MWRITE) ? 1'b1 : 1'b0;
-    assign o_mreq_wsize = mreq_wsize;
-    assign o_mreq_aincr = mreq_aincr;
-    assign o_mreq_wcount = mreq_wcount;
-    assign o_mreq_addr = mreq_addr;
+    reg [MREQ_NBIT-1:0] mreq;
+    assign o_mreq = mreq;
+
+    always @(*) begin
+        mreq = pack_mreq(
+            (op == CMD_OP_MWRITE) ? 1'b1 : 1'b0,
+            mreq_aincr,
+            mreq_wsize,
+            mreq_wcount,
+            mreq_addr
+        );
+    end
 
     //
     // Rx ready generator

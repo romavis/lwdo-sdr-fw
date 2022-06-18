@@ -61,7 +61,7 @@ test: $(TESTS)
 $(TESTS): test_%: $(OUT_TEST_DIR)/test_% $(OUT_TEST_DIR)/test_%.vcd
 
 $(OUT_TEST_DIR)/test_%: $(TEST_DIR)/test_%.v $(OUT_TEST_DIR) $(V_MODULES) 
-	iverilog -o $@ $< $(foreach mod,$(V_MODULES), -l $(mod)) $(foreach path,$(V_INCLUDE_PATHS),-I $(path))
+	iverilog -g2005-sv -o $@ $< $(foreach mod,$(V_MODULES), -l $(mod)) $(foreach path,$(V_INCLUDE_PATHS),-I $(path))
 
 $(OUT_TEST_DIR)/test_%.vcd: $(OUT_TEST_DIR)/test_%
 	@echo "Running test: $<"

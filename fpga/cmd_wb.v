@@ -18,11 +18,7 @@ module cmd_wb #(
     // MREQ bus
     input i_mreq_valid,
     output o_mreq_ready,
-    input i_mreq_wr,
-    input [1:0] i_mreq_wsize,
-    input i_mreq_aincr,
-    input [7:0] i_mreq_wcount,
-    input [31:0] i_mreq_addr,
+    input [MREQ_NBIT-1:0] i_mreq,
     // Rx data stream (for write requests)
     input i_rx_valid,
     input [7:0] i_rx_data,
@@ -34,6 +30,7 @@ module cmd_wb #(
 );
     
     `include "cmd_defines.vh"
+    `include "mreq_defines.vh"
 
     //
     // SysCon
@@ -42,6 +39,19 @@ module cmd_wb #(
     wire rst;
     assign clk = i_clk;
     assign rst = i_rst;
+
+    //
+    // Decode MREQ
+    //
+    reg mreq_wr;
+    reg mreq_aincr;
+    reg [1:0] mreq_wsize;
+    reg [7:0] mreq_wcount;
+    reg [31:0] mreq_addr;
+
+    always @(*) begin
+        unpack_mreq(i_mreq, mreq_wr, mreq_aincr, mreq_wsize, mreq_wcount, mreq_addr);
+    end
 
     //
     // Wishbone transfer status
@@ -89,7 +99,7 @@ module cmd_wb #(
         // Idle: wait for incoming MREQ and process it when it comes
         ST_IDLE: begin
             if (i_mreq_valid) begin
-                state_next = i_mreq_wr ? ST_CONSTRUCT_WORD : ST_WB_REQ_WAIT;
+                state_next = mreq_wr ? ST_CONSTRUCT_WORD : ST_WB_REQ_WAIT;
             end
         end
 
@@ -160,8 +170,8 @@ module cmd_wb #(
     reg wbio_last_byte;
     always @(*) begin
         case (r_mreq_wsize)
-        CMD_WSIZE_4BYTE: wbio_last_byte = (wbio_byte_ctr == 2'd3) ? 1'b1 : 1'b0;
-        CMD_WSIZE_2BYTE: wbio_last_byte = (wbio_byte_ctr == 2'd1) ? 1'b1 : 1'b0;
+        MREQ_WSIZE_VAL_4BYTE: wbio_last_byte = (wbio_byte_ctr == 2'd3) ? 1'b1 : 1'b0;
+        MREQ_WSIZE_VAL_2BYTE: wbio_last_byte = (wbio_byte_ctr == 2'd1) ? 1'b1 : 1'b0;
         default: wbio_last_byte = 1'b1;
         endcase
     end
@@ -224,7 +234,7 @@ module cmd_wb #(
         end else begin
             // Load address from MREQ
             if (state == ST_IDLE && state_next != ST_IDLE) begin
-                wb_addr <= i_mreq_addr[WB_ADDR_WIDTH+1:2];
+                wb_addr <= mreq_addr[WB_ADDR_WIDTH+1:2];
             end
             // Increment address immediately after WB request has been sent
             if (r_mreq_aincr && wb_req_ack) begin
@@ -246,7 +256,7 @@ module cmd_wb #(
         end else begin
             // Capture word count when idling
             if (state == ST_IDLE) begin
-                words_remaining <= i_mreq_wcount;
+                words_remaining <= mreq_wcount;
             end
             // Decrement word count when WB req is accepted and it's not the last word
             if (wb_req_ack && !last_word) begin
@@ -269,9 +279,9 @@ module cmd_wb #(
             r_mreq_wsize <= 2'b0;
         end else begin
             if (state == ST_IDLE) begin
-                r_mreq_wr <= i_mreq_wr;
-                r_mreq_aincr <= i_mreq_aincr;
-                r_mreq_wsize <= i_mreq_wsize;
+                r_mreq_wr <= mreq_wr;
+                r_mreq_aincr <= mreq_aincr;
+                r_mreq_wsize <= mreq_wsize;
             end
         end
     end

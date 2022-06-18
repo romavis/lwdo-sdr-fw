@@ -84,6 +84,8 @@ module stream_gen (
 endmodule
 
 module test_cmd_rx;
+    `include "mreq_defines.vh"
+
     reg clk = 0;
     reg rst = 0;
     reg en = 0;
@@ -96,7 +98,7 @@ module test_cmd_rx;
 
     initial begin
         $dumpfile("test_cmd_rx.vcd");
-        $dumpvars(0);
+        $dumpvars;
 
         repeat (5) @(posedge clk);
         rst <= 1;
@@ -125,11 +127,21 @@ module test_cmd_rx;
 
     wire mreq_valid;
     reg mreq_ready = 1;
-    wire mreq_wr;
-    wire [1:0] mreq_wsize;
-    wire mreq_aincr;
-    wire [7:0] mreq_wcount;
-    wire [31:0] mreq_addr;
+    wire [MREQ_NBIT-1:0] mreq;
+
+    reg mreq_wr;
+    reg [1:0] mreq_wsize;
+    reg mreq_aincr;
+    reg [7:0] mreq_wcount;
+    reg [31:0] mreq_addr;
+
+
+    always @(*) begin
+        unpack_mreq (
+            mreq,
+            mreq_wr, mreq_aincr, mreq_wsize, mreq_wcount, mreq_addr
+        );
+    end
 
     cmd_rx dut (
         .i_clk(clk),
@@ -143,10 +155,7 @@ module test_cmd_rx;
         //
         .o_mreq_valid(mreq_valid),
         .i_mreq_ready(mreq_ready),
-        .o_mreq_wr(mreq_wr),
-        .o_mreq_wsize(mreq_wsize),
-        .o_mreq_wcount(mreq_wcount),
-        .o_mreq_addr(mreq_addr)
+        .o_mreq(mreq)
     );
 
 endmodule

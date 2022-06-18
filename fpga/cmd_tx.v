@@ -9,14 +9,11 @@ module cmd_tx (
     // MREQ bus
     input i_mreq_valid,
     output o_mreq_ready,
-    input i_mreq_wr,
-    input [1:0] i_mreq_wsize,
-    input i_mreq_aincr,
-    input [7:0] i_mreq_wcount,
-    input [31:0] i_mreq_addr
+    input [MREQ_NBIT-1:0] i_mreq
 );
 
     `include "cmd_defines.vh"
+    `include "mreq_defines.vh"
 
     //
     // SysCon
@@ -118,11 +115,7 @@ module cmd_tx (
 
     always @(posedge i_clk) begin
         if (state == ST_IDLE && state_change) begin
-            r_mreq_wr <= i_mreq_wr;
-            r_mreq_aincr <= i_mreq_aincr;
-            r_mreq_wsize <= i_mreq_wsize;
-            r_mreq_wcount <= i_mreq_wcount;
-            r_mreq_addr <= i_mreq_addr;
+            unpack_mreq(i_mreq, r_mreq_wr, r_mreq_aincr, r_mreq_wsize, r_mreq_wcount, r_mreq_addr);
         end
     end
 

@@ -4,6 +4,7 @@
 module test_cmd_tx;
 
     `include "cmd_defines.vh"
+    `include "mreq_defines.vh"
 
     reg clk = 0;
     reg rst = 0;
@@ -29,11 +30,7 @@ module test_cmd_tx;
         //
         .i_mreq_valid(mreq_valid),
         .o_mreq_ready(mreq_ready),
-        .i_mreq_wr(mreq_wr),
-        .i_mreq_wsize(mreq_wsize),
-        .i_mreq_aincr(mreq_aincr),
-        .i_mreq_wcount(mreq_wcount),
-        .i_mreq_addr(mreq_addr)
+        .i_mreq(pack_mreq(mreq_wr, mreq_aincr, mreq_wsize, mreq_wcount, mreq_addr))
     );
 
     always #5 clk = ~clk;
@@ -48,7 +45,7 @@ module test_cmd_tx;
         rst <= 0;
         repeat (5) @(posedge clk);
         
-        mreq_wsize <= CMD_WSIZE_2BYTE;
+        mreq_wsize <= MREQ_WSIZE_VAL_2BYTE;
         mreq_aincr <= 1;
         mreq_wcount <= 8'd5;
         mreq_addr <= 32'h12345678;
@@ -61,7 +58,7 @@ module test_cmd_tx;
         repeat (10) @(posedge clk);
 
         mreq_wr <= 1;
-        mreq_wsize <= CMD_WSIZE_2BYTE;
+        mreq_wsize <= MREQ_WSIZE_VAL_2BYTE;
         mreq_aincr <= 1;
         mreq_wcount <= 8'd5;
         mreq_addr <= 32'h43211234;

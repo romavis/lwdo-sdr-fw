@@ -32,6 +32,7 @@ module test_cmd_wb;
     localparam WB_ADDR_WIDTH = 6;
 
     `include "cmd_defines.vh"
+    `include "mreq_defines.vh"
 
     wb_mem_dly #(
         .WB_ADDR_WIDTH(WB_ADDR_WIDTH),
@@ -88,11 +89,7 @@ module test_cmd_wb;
         // mreq
         .i_mreq_valid(mreq_valid),
         .o_mreq_ready(mreq_ready),
-        .i_mreq_wr(mreq_wr),
-        .i_mreq_wsize(mreq_wsize),
-        .i_mreq_aincr(mreq_aincr),
-        .i_mreq_wcount(mreq_wcount),
-        .i_mreq_addr(mreq_addr),
+        .i_mreq(pack_mreq(mreq_wr, mreq_aincr, mreq_wsize, mreq_wcount, mreq_addr)),
         // rx
         .o_rx_ready(rx_ready),
         .i_rx_data(rx_data),
@@ -146,7 +143,7 @@ module test_cmd_wb;
         if (mreq_valid && mreq_ready) begin
             $display("MREQ: CMD_WB acknowledged request: %s wsize=%1d addr=0x%08x aincr=%b size=%1d",
                 mreq_wr ? "WRITE" : "READ",
-                mreq_wsize == CMD_WSIZE_4BYTE ? 4 : mreq_wsize == CMD_WSIZE_2BYTE ? 2 : mreq_wsize == CMD_WSIZE_1BYTE ? 1 : 0,
+                mreq_wsize == MREQ_WSIZE_VAL_4BYTE ? 4 : mreq_wsize == MREQ_WSIZE_VAL_2BYTE ? 2 : mreq_wsize == MREQ_WSIZE_VAL_1BYTE ? 1 : 0,
                 mreq_addr,
                 mreq_aincr,
                 mreq_wcount
@@ -169,7 +166,7 @@ module test_cmd_wb;
         mreq_wr <= 1'b1;
         mreq_addr <= 32'h0C;    // Byte address: 0xC, WB word address will be 0x3
         mreq_aincr <= 1'b1; 
-        mreq_wsize <= CMD_WSIZE_2BYTE;
+        mreq_wsize <= MREQ_WSIZE_VAL_2BYTE;
         mreq_wcount <= 8'd2;  // 2 words
 
         mreq_valid <= 1'b1;
@@ -182,7 +179,7 @@ module test_cmd_wb;
         mreq_wr <= 1'b1;
         mreq_addr <= 32'h10;    // Byte address: 0x10, WB word address will be 0x4
         mreq_aincr <= 1'b1; 
-        mreq_wsize <= CMD_WSIZE_4BYTE;
+        mreq_wsize <= MREQ_WSIZE_VAL_4BYTE;
         mreq_wcount <= 8'd2;  // 2 words
 
         mreq_valid <= 1'b1;
@@ -193,7 +190,7 @@ module test_cmd_wb;
 
         // --REQ-- Read something
         mreq_wr <= 1'b0;
-        mreq_wsize <= CMD_WSIZE_1BYTE;
+        mreq_wsize <= MREQ_WSIZE_VAL_1BYTE;
 
         mreq_valid <= 1'b1;
 
@@ -207,7 +204,7 @@ module test_cmd_wb;
 
         // --REQ-- Read something
         mreq_wr <= 1'b0;
-        mreq_wsize <= CMD_WSIZE_2BYTE;
+        mreq_wsize <= MREQ_WSIZE_VAL_2BYTE;
 
         mreq_valid <= 1'b1;
         @(posedge clk); wait(mreq_ready) @(posedge clk);
@@ -217,7 +214,7 @@ module test_cmd_wb;
 
         // --REQ-- Read something
         mreq_wr <= 1'b0;
-        mreq_wsize <= CMD_WSIZE_4BYTE;
+        mreq_wsize <= MREQ_WSIZE_VAL_4BYTE;
 
         mreq_valid <= 1'b1;
         @(posedge clk); wait(mreq_ready) @(posedge clk);
