@@ -78,7 +78,7 @@ module test_wb_rxfifo;
     reg rx_enable = 1;
     wire rx_ready;
     wire rx_valid;
-    wire [7:0] rx_data;
+    wire [31:0] rx_data;
     //
     wire [FIFO_ADDR_WIDTH-1:0] fifo_count;
     wire fifo_empty, fifo_full, fifo_half_full, fifo_overflow, fifo_underflow;
@@ -126,7 +126,7 @@ module test_wb_rxfifo;
 
     always #5 clk = ~clk;
 
-    task wb_single_transaction();
+    task wb_single_transaction;
         begin
             wb_stb <= 1;
             @(posedge clk) while(!wb_req_ack) @(posedge clk);
