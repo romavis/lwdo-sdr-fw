@@ -6,9 +6,7 @@ module test_wb_mem;
     localparam WB_ADDR_WIDTH = 6;
 
     wb_mem #(
-        .WB_ADDR_WIDTH(WB_ADDR_WIDTH),
-        .STALL_WS(0),
-        .ACK_WS(0),
+        .WB_ADDR_WIDTH(WB_ADDR_WIDTH)
     ) dut (
         .i_clk(clk),
         .i_rst(rst),
