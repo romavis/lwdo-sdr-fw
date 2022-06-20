@@ -34,6 +34,10 @@ module dac8551 #(
             if (i_wr) begin
                 latch_valid <= 1'b1;
                 latch_data <= i_wr_data;
+            end else begin
+                if (dac_cycle == 5'd0 && !dac_div && !dac_spi_clk) begin
+                    latch_valid <= 1'b0;
+                end
             end
         end
     end
@@ -65,10 +69,6 @@ module dac8551 #(
                             dac_reg <= latch_data;
                             dac_spi_sync_n <= 1'b0;
                             dac_cycle <= 5'd1;
-                            // Reset latch
-                            if (!i_wr) begin
-                                latch_valid <= 1'b0;
-                            end
                         end
                     end else if(dac_cycle < 5'd24) begin
                         // shift
