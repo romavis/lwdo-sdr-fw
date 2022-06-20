@@ -164,7 +164,7 @@ module top (
 
     // ===============================================================================================================
     // =========================                                                             =========================
-    // =========================                       CROSS CLOCK DOMAIN                    =========================
+    // =========================                    CLOCK DOMAIN CROSSING                    =========================
     // =========================            @(negedge adc_clk) / @(posedge sys_clk)          =========================
     // =========================                                                             =========================
     // ===============================================================================================================
@@ -191,7 +191,7 @@ module top (
         .rclk(sys_clk),
         .rrst_n(!sys_rst),
         //
-        .rinc(adcstr1_ready),// && !adcstr1_valid_n),
+        .rinc(adcstr1_ready && !adcstr1_valid_n),
         .rdata(adcstr1_data),
         .rempty(adcstr1_valid_n)
     );
@@ -211,7 +211,7 @@ module top (
         .rclk(sys_clk),
         .rrst_n(!sys_rst),
         //
-        .rinc(adcstr2_ready),// && !adcstr2_valid_n),
+        .rinc(adcstr2_ready && !adcstr2_valid_n),
         .rdata(adcstr2_data),
         .rempty(adcstr2_valid_n)
     );
