@@ -25,6 +25,7 @@ V_MODULES := \
 	$(SRC_DIR)/ad7357if.v \
 	$(SRC_DIR)/ft245sync.v \
 	$(SRC_DIR)/stream_buf.v \
+	$(SRC_DIR)/syncfifo.v \
 	$(SRC_DIR)/crc8.v \
 	$(SRC_DIR)/cmd_rx.v \
 	$(SRC_DIR)/cmd_tx.v \
@@ -34,16 +35,19 @@ V_MODULES := \
 	$(SRC_DIR)/wb_ctrl_port.v \
 	$(SRC_DIR)/wb_mem.v \
 	$(SRC_DIR)/wb_mem_dly.v \
+	$(SRC_DIR)/wb_rxfifo.v \
 	$(SRC_DIR)/wb_dummy.v
 
 V_INCLUDE_PATHS := \
 	$(SRC_DIR)
 
 TESTS := \
+	test_syncfifo \
 	test_cmd_wb \
 	test_cmd_tx \
 	test_cmd_rx \
-	test_wb_ctrl_port
+	test_wb_ctrl_port \
+	test_wb_rxfifo
 
 
 # Directories
