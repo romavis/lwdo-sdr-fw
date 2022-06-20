@@ -116,4 +116,4 @@ $(OUT_DIR)/%_syntb.vcd: $(OUT_DIR)/%_syntb
 clean:
 	rm -f $(foreach test,$(TESTS),$(OUT_TEST_DIR)/$(test).vcd)
 	rm -f $(foreach test,$(TESTS),$(OUT_TEST_DIR)/$(test))
-	rm -f $(OUT_DIR)/$(PROJ).blif $(OUT_DIR)/$(PROJ).asc $(OUT_DIR)/$(PROJ).rpt $(OUT_DIR)/$(PROJ).bin
+	rm -f $(OUT_DIR)/$(PROJ).blif $(OUT_DIR)/$(PROJ).asc $(OUT_DIR)/$(PROJ).rpt $(OUT_DIR)/$(PROJ).bin $(OUT_DIR)/$(PROJ).json
