@@ -23,6 +23,7 @@ all: $(OUT_DIR)/$(PROJ).bin
 V_MODULES := \
 	$(SRC_DIR)/top.v \
 	$(SRC_DIR)/ad7357if.v \
+	$(SRC_DIR)/dac8551.v \
 	$(SRC_DIR)/ft245sync.v \
 	$(SRC_DIR)/stream_buf.v \
 	$(SRC_DIR)/syncfifo.v \
@@ -41,14 +42,27 @@ V_MODULES := \
 V_INCLUDE_PATHS := \
 	$(SRC_DIR)
 
+# 3rdparty verilog modules
+V_MODULES += \
+	$(SRC_DIR)/3rdparty/async_fifo/src/vlog/async_fifo.v \
+	$(SRC_DIR)/3rdparty/async_fifo/src/vlog/fifo_2mem.v \
+	$(SRC_DIR)/3rdparty/async_fifo/src/vlog/rptr_empty.v \
+	$(SRC_DIR)/3rdparty/async_fifo/src/vlog/sync_r2w.v \
+	$(SRC_DIR)/3rdparty/async_fifo/src/vlog/sync_w2r.v \
+	$(SRC_DIR)/3rdparty/async_fifo/src/vlog/wptr_full.v
+
+V_INCLUDE_PATHS += \
+	$(SRC_DIR)/3rdparty/async_fifo/src/vlog
+
+# Tests
 TESTS := \
 	test_syncfifo \
 	test_cmd_wb \
 	test_cmd_tx \
 	test_cmd_rx \
 	test_wb_ctrl_port \
-	test_wb_rxfifo
-
+	test_wb_rxfifo \
+	test_dac8551
 
 # Directories
 $(OUT_DIR):
