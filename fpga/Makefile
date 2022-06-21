@@ -90,7 +90,7 @@ $(OUT_DIR)/top.json: $(V_MODULES)
 	yosys -p 'synth_ice40 -top $(PROJ) -json $@' $^
 
 $(OUT_DIR)/%.asc: $(OUT_DIR)/%.json $(PIN_DEF)
-	nextpnr-ice40 --$(DEVICE) --package $(PACKAGE) --json $< --pcf $(PIN_DEF) --asc $@ $(NEXTPNR_EXTRA)
+	nextpnr-ice40 --randomize-seed --$(DEVICE) --package $(PACKAGE) --json $< --pcf $(PIN_DEF) --asc $@ $(NEXTPNR_EXTRA)
 
 $(OUT_DIR)/%.bin: $(OUT_DIR)/%.asc
 	icepack -v $< $@

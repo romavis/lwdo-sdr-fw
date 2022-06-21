@@ -261,6 +261,7 @@ module top (
     wire [7:0] ft_rx_data;
     wire ft_rx_valid;
     wire ft_rx_ready;
+    wire [3:0] ft_dbg;
 
     ft245sync ft245sync_i (
         // SYSCON
@@ -283,7 +284,9 @@ module top (
         .o_tx_ready(ft_tx_ready),
         .o_rx_data(ft_rx_data),
         .o_rx_valid(ft_rx_valid),
-        .i_rx_ready(ft_rx_ready)
+        .i_rx_ready(ft_rx_ready),
+        // debug
+        .o_dbg(ft_dbg)
     );
 
     // ===============================================================================================================
@@ -355,8 +358,9 @@ module top (
         .o_tx_data(ft_tx_data),
         .o_tx_valid(ft_tx_valid),
         // TODO: EMREQs
-        .i_emreqs_valid(1'b0),
-        .i_emreqs({MREQ_NBIT{1'b0}})
+        .i_emreqs_valid(adcstr1_emreq_valid),
+        .o_emreqs_ready(adcstr1_emreq_ready),
+        .i_emreqs(pack_mreq(1'b0, 1'b0, MREQ_WSIZE_VAL_4BYTE, 8'hFF, 32'h00000080))
     );
 
 
@@ -369,16 +373,42 @@ module top (
     wire wbs_ack_dummy, wbs_ack_mem, wbs_ack_adcstr1, wbs_ack_adcstr2;
     wire [31:0] wbs_rdata_dummy, wbs_rdata_mem, wbs_rdata_adcstr1, wbs_rdata_adcstr2;
 
-    // localparam WBS_ID_DUMMY = 0;
-    // localparam WBS_ID_MEM = 1;
-    // localparam WBS_ID_ADCSTR1 = 2;
-    // localparam WBS_ID_ADCSTR2 = 3;
-    // //
-    // localparam WBS_ID_COUNT = 4;
-    // //
-    // localparam WBS_ID_NBITS = $clog2(WBS_ID_COUNT);
+    localparam WBS_ID_DUMMY = 0;
+    localparam WBS_ID_MEM = 1;
+    localparam WBS_ID_ADCSTR1 = 2;
+    localparam WBS_ID_ADCSTR2 = 3;
+    //
+    localparam WBS_ID_COUNT = 4;
+    //
+    localparam WBS_ID_NBITS = $clog2(WBS_ID_COUNT);
 
-    // reg [WBS_ID_NBITS-1:0] wbs_id_sel;
+    reg [WBS_ID_NBITS-1:0] wbs_id_sel_c;
+    reg [WBS_ID_NBITS-1:0] wbs_id_sel_r;
+
+    wire [WBS_ID_NBITS-1:0] wbs_id_sel;
+    assign wbs_id_sel = (wbm_cyc && wb_stb) ? wbs_id_sel_c : wbs_id_sel_r;
+
+    always @(*) begin
+        if (wb_addr < 8'h10) begin
+            wbs_id_sel_c = WBS_ID_MEM;
+        end else if (wb_addr == 8'h20) begin
+            wbs_id_sel_c = WBS_ID_ADCSTR1;
+        end else if (wb_addr == 8'h21) begin
+            wbs_id_sel_c = WBS_ID_ADCSTR2;
+        end else begin
+            wbs_id_sel_c = WBS_ID_DUMMY;
+        end
+    end
+
+    always @(posedge sys_clk) begin
+        if (sys_rst) begin
+            wbs_id_sel_r <= WBS_ID_DUMMY;
+        end else begin
+            if (wbm_cyc && wb_stb) begin
+                wbs_id_sel_r <= wbs_id_sel_c;
+            end
+        end
+    end
 
     always @(*) begin
         wbs_cyc_dummy = 1'b0;
@@ -386,20 +416,17 @@ module top (
         wbs_cyc_adcstr1 = 1'b0;
         wbs_cyc_adcstr2 = 1'b0;
 
-        if (wb_addr < 8'h10) begin
-            // MEM
+        if (wbs_id_sel == WBS_ID_MEM) begin
             wbs_cyc_mem = wbm_cyc;
             wbm_rdata = wbs_rdata_mem;
             wbm_stall = wbs_stall_mem;
             wbm_ack = wbs_ack_mem;
-        end else if (wb_addr == 8'h20) begin
-            // ADCSTR1
+        end else if (wbs_id_sel == WBS_ID_ADCSTR1) begin
             wbs_cyc_adcstr1 = wbm_cyc;
             wbm_rdata = wbs_rdata_adcstr1;
             wbm_stall = wbs_stall_adcstr1;
             wbm_ack = wbs_ack_adcstr1;
-        end else if (wb_addr == 8'h21) begin
-            // ADCSTR2
+        end else if (wbs_id_sel == WBS_ID_ADCSTR2) begin
             wbs_cyc_adcstr2 = wbm_cyc;
             wbm_rdata = wbs_rdata_adcstr2;
             wbm_stall = wbs_stall_adcstr2;
@@ -413,39 +440,13 @@ module top (
         end
     end
 
-    // // CYC demultiplexer
-    // always @(*) begin
-    //     wbs_cyc_dummy = (wbs_id_sel == WBS_ID_DUMMY) ? wbm_cyc : 1'b0;
-    //     wbs_cyc_mem = (wbs_id_sel == WBS_ID_MEM) ? wbm_cyc : 1'b0;
-    //     wbs_cyc_adcstr1 = (wbs_id_sel == WBS_ID_ADCSTR1) ? wbm_cyc : 1'b0;
-    //     wbs_cyc_adcstr2 = (wbs_id_sel == WBS_ID_ADCSTR2) ? wbm_cyc : 1'b0;
-    // end
-
-    // // STALL, ACK, RDATA multiplexer
-    // always @(*) begin
-    //     if (wbs_id_sel == WBS_ID_MEM) begin
-    //         wbm_rdata = wbs_rdata_mem;
-    //         wbm_stall = wbs_stall_mem;
-    //         wbm_ack = wbs_ack_mem;
-    //     end else if (wbs_id_sel == WBS_ID_ADCSTR1) begin
-    //         wbm_rdata = wbs_rdata_adcstr1;
-    //         wbm_stall = wbs_stall_adcstr1;
-    //         wbm_ack = wbs_ack_adcstr1;
-    //     end else if (wbs_id_sel == WBS_ID_ADCSTR2) begin
-    //         wbm_rdata = wbs_rdata_adcstr2;
-    //         wbm_stall = wbs_stall_adcstr2;
-    //         wbm_ack = wbs_ack_adcstr2;
-    //     end else begin
-    //         wbm_rdata = wbs_rdata_dummy;
-    //         wbm_stall = wbs_stall_dummy;
-    //         wbm_ack = wbs_ack_dummy;
-    //     end
-    // end
-
     // ---------------------------
     // Wishbone syncFIFOs for ADC
     // ---------------------------
-    localparam ADCSTR_SFIFO_ASIZE = 7;
+    localparam ADCSTR_SFIFO_ASIZE = 9;
+
+    wire adcstr1_sfifo_full, adcstr2_sfifo_full;
+    wire adcstr1_sfifo_half_full, adcstr2_sfifo_half_full;
 
     wb_rxfifo #(
         .FIFO_ADDR_WIDTH(ADCSTR_SFIFO_ASIZE)
@@ -462,12 +463,12 @@ module top (
         // rx stream
         .i_rx_valid(!adcstr1_valid_n),
         .o_rx_ready(adcstr1_ready),
-        .i_rx_data(adcstr1_data)
+        .i_rx_data(adcstr1_data),
         // fifo status
         // .o_fifo_count(fifo_count),
         // .o_fifo_empty(fifo_empty),
-        // .o_fifo_full(fifo_full),
-        // .o_fifo_half_full(fifo_half_full),
+        .o_fifo_full(adcstr1_sfifo_full),
+        .o_fifo_half_full(adcstr1_sfifo_half_full)
         // .o_fifo_overflow(fifo_overflow),
         // .o_fifo_underflow(fifo_underflow)
     );
@@ -487,15 +488,45 @@ module top (
         // rx stream
         .i_rx_valid(!adcstr2_valid_n),
         .o_rx_ready(adcstr2_ready),
-        .i_rx_data(adcstr2_data)
+        .i_rx_data(adcstr2_data),
         // fifo status
         // .o_fifo_count(fifo_count),
         // .o_fifo_empty(fifo_empty),
-        // .o_fifo_full(fifo_full),
-        // .o_fifo_half_full(fifo_half_full),
+        .o_fifo_full(adcstr2_sfifo_full),
+        .o_fifo_half_full(adcstr2_sfifo_half_full)
         // .o_fifo_overflow(fifo_overflow),
         // .o_fifo_underflow(fifo_underflow)
     );
+    
+    // -----------------------------------------------
+    // EMREQ valid/ready state machine for ADC fifos
+    // -----------------------------------------------
+    reg adcstr1_emreq_valid, adcstr2_emreq_valid;
+    wire adcstr1_emreq_ready, adcstr2_emreq_ready;
+
+    always @(posedge sys_clk) begin
+        if (sys_rst) begin
+            adcstr1_emreq_valid <= 1'b0;
+            adcstr2_emreq_valid <= 1'b0;
+        end else begin
+            // adc1
+            if (adcstr1_sfifo_half_full) begin
+                adcstr1_emreq_valid <= 1'b1;
+            end else begin
+                if (adcstr1_emreq_ready) begin
+                    adcstr1_emreq_valid <= 1'b0;
+                end
+            end
+            // adc2
+            if (adcstr2_sfifo_half_full) begin
+                adcstr2_emreq_valid <= 1'b1;
+            end else begin
+                if (adcstr2_emreq_ready) begin
+                    adcstr2_emreq_valid <= 1'b0;
+                end
+            end
+        end
+    end
 
     // ------------------------
     // Wishbone dummy slave
@@ -550,21 +581,24 @@ module top (
     // CLK OUT
     // ------------------------
     assign p_clk_out_sel = 1'b1;
-    assign p_clk_out = adc_srate_div_out;
+    assign p_clk_out = ~adcstr1_sfifo_full;
 
     // ------------------------
     // LEDs
     // ------------------------
-    assign p_led_sts_r = 1;
-    assign p_led_sts_g = 0;
+    assign p_led_sts_r = ft_dbg[0];
+    assign p_led_sts_g = ft_dbg[1];
     //
-    assign p_led_in1_r = adc_pll_lock;
-    assign p_led_in1_g = 0;
-    assign p_led_in2_r = 0;
-    assign p_led_in2_g = 0;
-    assign p_led_in3_r = 0;
+    assign p_led_in1_r = ft_tx_valid;   // 0
+    assign p_led_in1_g = ft_tx_ready;   // 1
+    assign p_led_in2_r = ft_rx_valid;   // 1
+    assign p_led_in2_g = ft_rx_ready;   // 0
+    // assign p_led_in3_r = ~p_ft_fifo_rxf_n;
+    // assign p_led_in3_g = 0;
+    // assign p_led_in4_r = ~p_ft_fifo_txe_n;
+    // assign p_led_in4_g = 0;
+    assign p_led_in3_r = adcstr1_emreq_valid;
     assign p_led_in3_g = 0;
-    assign p_led_in4_r = 0;
+    assign p_led_in4_r = adcstr1_emreq_ready;
     assign p_led_in4_g = 0;
-
 endmodule

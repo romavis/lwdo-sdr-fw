@@ -78,20 +78,25 @@ module ft245sync (
         end
     end
 
+    wire rx_possible;
+    wire tx_possible;
+    assign rx_possible = ftdi_rx_ready && !i_pin_rxf_n;
+    assign tx_possible = ftdi_tx_valid && !i_pin_txe_n;
+
     always @(*) begin
         state_next = state;
         case (state)
 
         ST_RX: begin
             // If we're not ready to receive data, we want to send some data, and FTDI is ready to receive it, switch to TX
-            if (!ftdi_rx_ready && ftdi_tx_valid && (i_pin_txe_n == 1'b0)) begin
+            if (!rx_possible && tx_possible) begin
                 state_next = ST_SWITCH_RX2TX;
             end
         end
 
         ST_TX: begin
             // If we're ready to receive data, FTDI has some data for us, switch to RX
-            if (ftdi_rx_ready && (i_pin_rxf_n == 1'b0)) begin
+            if (rx_possible) begin
                 state_next = ST_SWITCH_TX2RX;
             end
         end
