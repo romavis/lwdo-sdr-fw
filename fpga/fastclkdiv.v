@@ -35,7 +35,7 @@ endmodule
 
 module fastclkdiv #(
     parameter NBITS = 10,
-    parameter NBITS_STAGE = 3
+    parameter NBITS_STAGE = 9   // default value good for iCE40
 ) (
     input i_clk,
     input i_en,
