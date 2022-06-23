@@ -19,7 +19,8 @@ module test_fastclkdiv;
     ) dut (
         .i_clk(clk),
         .i_en(en),
-        .i_load(load || (zero && auto_reload)),
+        .i_autoreload_en(auto_reload),
+        .i_load(load),
         .i_load_q(load_q),
         .o_q(q),
         .o_zero(zero)
@@ -58,9 +59,6 @@ module test_fastclkdiv;
         repeat(30) @(posedge clk);
         // Set reload to 0
         load_q <= 0;
-        load <= 1;
-        @(posedge clk);
-        load <= 0;
         // Count
         repeat(30) @(posedge clk);
 

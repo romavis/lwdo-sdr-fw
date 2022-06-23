@@ -40,6 +40,7 @@ module fastclkdiv #(
     input i_clk,
     input i_en,
     input i_load,
+    input i_autoreload_en,
     input [NBITS-1:0] i_load_q,
     output [NBITS-1:0] o_q,
     output o_zero
@@ -53,7 +54,11 @@ module fastclkdiv #(
     // EN inputs of all stages
     wire [NSTAGES-1:0] st_en;
 
-    // Logic
+    // Load logic
+    wire load;
+    assign load = i_load || (i_autoreload_en && o_zero);
+
+    // Carry logic
     assign st_en[0] = i_en;
     generate
         if(NSTAGES > 1)
@@ -70,7 +75,7 @@ module fastclkdiv #(
                 ) ctr (
                     .i_clk(i_clk),
                     .i_en(st_en[ii]),
-                    .i_load(i_load),
+                    .i_load(load),
                     .i_load_q(i_load_q[(ii+1)*NBITS_STAGE-1:ii*NBITS_STAGE]),
                     .o_q(o_q[(ii+1)*NBITS_STAGE-1:ii*NBITS_STAGE]),
                     .o_zero(st_end[ii])
@@ -81,7 +86,7 @@ module fastclkdiv #(
                 ) ctr (
                     .i_clk(i_clk),
                     .i_en(st_en[ii]),
-                    .i_load(i_load),
+                    .i_load(load),
                     .i_load_q(i_load_q[NBITS-1:ii*NBITS_STAGE]),
                     .o_q(o_q[NBITS-1:ii*NBITS_STAGE]),
                     .o_zero(st_end[ii])
