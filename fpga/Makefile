@@ -28,7 +28,7 @@ V_MODULES := \
 	$(SRC_DIR)/stream_buf.v \
 	$(SRC_DIR)/syncfifo.v \
 	$(SRC_DIR)/crc8.v \
-	$(SRC_DIR)/fastclkdiv.v \
+	$(SRC_DIR)/fastcounter.v \
 	$(SRC_DIR)/cmd_rx.v \
 	$(SRC_DIR)/cmd_tx.v \
 	$(SRC_DIR)/cmd_wb.v \
@@ -64,7 +64,7 @@ TESTS := \
 	test_wb_ctrl_port \
 	test_wb_rxfifo \
 	test_dac8551 \
-	test_fastclkdiv
+	test_fastcounter
 
 # Directories
 $(OUT_DIR):
