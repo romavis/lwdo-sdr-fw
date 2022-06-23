@@ -1,3 +1,7 @@
+# ========================================
+#  Pins
+# ========================================
+
 # status LED
 set_io p_led_sts_r 93
 set_io p_led_sts_g 94
@@ -75,3 +79,15 @@ set_io p_qspi_io2 62
 set_io p_qspi_io3 61
 
 # TODO: SRAM
+
+# ========================================
+#  Clocks
+# ========================================
+
+# Input clock pins
+set_frequency p_clk_20mhz_gbin1         20
+set_frequency p_clk_20mhz_gbin2         20
+set_frequency p_adc_sclk_gbin           80
+set_frequency p_ft_fifo_clkout          60
+# PLL output nets
+set_frequency adc_pll_out               80
