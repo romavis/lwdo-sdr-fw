@@ -103,23 +103,122 @@ module top (
         end
     end
 
-    // ADC sample rate generator
-    reg [4:0] adc_srate_div_ctr;
-    wire adc_srate_div_out;
+    // ----------------------------------------
+    //      ADC1,2 sample rate generators
+    //
+    //                      +----> [adc_srate1_div] ----> adc_srate1 ----> [ADC1]
+    //  adc_clk (80MHz) ->--+
+    //                      +----> [adc_srate2_div] ----> adc_srate2 ----> [ADC2]
+    //
+    wire adc_srate1, adc_srate2;
 
-    assign adc_srate_div_out = (adc_srate_div_ctr == 'd0);
+    fastcounter #(
+        .NBITS(8)
+    ) adc_srate1_psc (
+        .i_clk(~adc_clk),   // fastcounter is @(posedge i_clk) but the rest of our circuitry is @(negedge adc_clk)
+        .i_rst(adc_rst),
+        .i_mode(1'b0),      // AUTORELOAD
+        .i_en(1'b1),
+        .i_load(1'b0),
+        .i_load_q(8'd19),   // 80M/(1+19)=4M
+        .o_carry(adc_srate1)
+    );
 
-    always @(negedge adc_clk) begin
-        if (adc_rst) begin
-            adc_srate_div_ctr <= 'd0;
-        end else begin
-            if (adc_srate_div_ctr == 'd0) begin
-                adc_srate_div_ctr <= 'd19;  // ratio = value + 1
-            end else begin
-                adc_srate_div_ctr <= adc_srate_div_ctr - 'd1;
-            end
-        end
-    end
+    fastcounter #(
+        .NBITS(8)
+    ) adc_srate2_psc (
+        .i_clk(~adc_clk),
+        .i_rst(adc_rst),
+        .i_mode(1'b0),      // AUTORELOAD
+        .i_en(1'b1),
+        .i_load(1'b0),
+        .i_load_q(8'd79),   // 80M/(1+79)=1M
+        .o_carry(adc_srate2)
+    );
+
+    // ----------------------------------------
+    //      Pulse generators
+    //
+    //  adc_srate1 --> [adc_puls1_psc] --> adc_puls1 --> [adc_puls1_dly] --> adc_puls1_d --> [adc_puls1_fmr] --> adc_puls1_w
+    //  adc_srate2 --> [adc_puls2_psc] --> adc_puls2 --> [adc_puls2_dly] --> adc_puls2_d --> [adc_puls2_fmr] --> adc_puls2_w
+    //  
+
+    wire adc_puls1, adc_puls2, adc_puls1_d, adc_puls2_d, adc_puls1_w, adc_puls2_w;
+
+    // Pulse frequency prescalers
+    fastcounter #(
+        .NBITS(23)
+    ) adc_puls1_psc (
+        .i_clk(~adc_clk),
+        .i_rst(adc_rst),
+        .i_mode(1'b0),      // AUTORELOAD
+        .i_en(adc_srate1),
+        .i_load(1'b0),
+        .i_load_q(23'd4_000_000),
+        .o_carry(adc_puls1)
+    );
+
+    fastcounter #(
+        .NBITS(23)
+    ) adc_puls2_psc (
+        .i_clk(~adc_clk),
+        .i_rst(adc_rst),
+        .i_mode(1'b0),      // AUTORELOAD
+        .i_en(adc_srate2),
+        .i_load(1'b0),
+        .i_load_q(23'd1_000_000),
+        .o_carry(adc_puls2)
+    );
+
+    // Pulse micro-delay (delay is in adc_clk periods, max delay is up to 2x adc_srate periods)
+    fastcounter #(
+        .NBITS(9)
+    ) adc_puls1_dly (
+        .i_clk(~adc_clk),
+        .i_rst(adc_rst),
+        .i_mode(1'b1),      // ONESHOT
+        .i_en(1'b1),
+        .i_load(adc_puls1),
+        .i_load_q(9'd18),
+        .o_zpulse(adc_puls1_d)
+    );
+
+    fastcounter #(
+        .NBITS(9)
+    ) adc_puls2_dly (
+        .i_clk(~adc_clk),
+        .i_rst(adc_rst),
+        .i_mode(1'b1),      // ONESHOT
+        .i_en(1'b1),
+        .i_load(adc_puls2),
+        .i_load_q(9'd78),
+        .o_zpulse(adc_puls2_d)
+    );
+
+    // Pulse width formers (width specified in adc_srate periods)
+    fastcounter #(
+        .NBITS(16)  // enough for 16ms pulse @ adc_srate=4MHz
+    ) adc_puls1_fmr (
+        .i_clk(~adc_clk),
+        .i_rst(adc_rst),
+        .i_mode(1'b1),      // ONESHOT
+        .i_en(adc_srate1),
+        .i_load(adc_puls1_d),
+        .i_load_q(16'd40000),
+        .o_nzero(adc_puls1_w)
+    );
+
+    fastcounter #(
+        .NBITS(16)
+    ) adc_puls2_fmr (
+        .i_clk(~adc_clk),
+        .i_rst(adc_rst),
+        .i_mode(1'b1),      // ONESHOT
+        .i_en(adc_srate2),
+        .i_load(adc_puls2_d),
+        .i_load_q(16'd10000),
+        .o_nzero(adc_puls2_w)
+    );
 
     // ------------------
     // ADCs
@@ -140,7 +239,7 @@ module top (
         .i_if_sdata_b(p_adc1_sdb),
         // Control
         .i_rst(adc_rst),
-        .i_sync(adc_srate_div_out),
+        .i_sync(adc_srate1),
         // Data
         .o_ready(adc1_rdy),
         .o_sample_a(adc1_data_a),
@@ -155,7 +254,7 @@ module top (
         .i_if_sdata_b(p_adc2_sdb),
         // Control
         .i_rst(adc_rst),
-        .i_sync(adc_srate_div_out),
+        .i_sync(adc_srate2),
         // Data
         .o_ready(adc2_rdy),
         .o_sample_a(adc2_data_a),
@@ -598,7 +697,7 @@ module top (
     // assign p_led_in4_r = ~p_ft_fifo_txe_n;
     // assign p_led_in4_g = 0;
     assign p_led_in3_r = adcstr1_emreq_valid;
-    assign p_led_in3_g = 0;
+    assign p_led_in3_g = adc_puls1_w;
     assign p_led_in4_r = adcstr1_emreq_ready;
-    assign p_led_in4_g = 0;
+    assign p_led_in4_g = adc_puls2_w;
 endmodule
