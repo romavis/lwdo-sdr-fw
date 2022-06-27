@@ -38,12 +38,14 @@ V_MODULES := \
 	$(SRC_DIR)/wb_mem.v \
 	$(SRC_DIR)/wb_mem_dly.v \
 	$(SRC_DIR)/wb_rxfifo.v \
-	$(SRC_DIR)/wb_dummy.v
+	$(SRC_DIR)/wb_dummy.v \
+	$(SRC_DIR)/wb_mux.v
+
 
 V_INCLUDE_PATHS := \
 	$(SRC_DIR)
 
-# 3rdparty verilog modules
+# 3rdparty verilog modules: async_fifo
 V_MODULES += \
 	$(SRC_DIR)/3rdparty/async_fifo/src/vlog/async_fifo.v \
 	$(SRC_DIR)/3rdparty/async_fifo/src/vlog/fifo_2mem.v \
@@ -54,6 +56,15 @@ V_MODULES += \
 
 V_INCLUDE_PATHS += \
 	$(SRC_DIR)/3rdparty/async_fifo/src/vlog
+
+# 3rdparty verilog modules: verilog-wishbone
+V_MODULES += \
+	$(SRC_DIR)/3rdparty/verilog-wishbone/rtl/arbiter.v \
+	$(SRC_DIR)/3rdparty/verilog-wishbone/rtl/priority_encoder.v \
+	$(SRC_DIR)/3rdparty/verilog-wishbone/rtl/wb_reg.v
+
+V_INCLUDE_PATHS += \
+	$(SRC_DIR)/3rdparty/verilog-wishbone/rtl
 
 # Tests
 TESTS := \
@@ -80,7 +91,7 @@ test: $(TESTS)
 .PHONY: $(TESTS)
 $(TESTS): test_%: $(OUT_TEST_DIR)/test_% $(OUT_TEST_DIR)/test_%.vcd
 
-$(OUT_TEST_DIR)/test_%: $(TEST_DIR)/test_%.v $(OUT_TEST_DIR) $(V_MODULES) 
+$(OUT_TEST_DIR)/test_%: $(TEST_DIR)/test_%.v $(OUT_TEST_DIR) $(V_MODULES)
 	iverilog -g2005-sv -o $@ $< $(foreach mod,$(V_MODULES), -l $(mod)) $(foreach path,$(V_INCLUDE_PATHS),-I $(path))
 
 $(OUT_TEST_DIR)/test_%.vcd: $(OUT_TEST_DIR)/test_%

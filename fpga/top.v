@@ -141,7 +141,7 @@ module top (
     //
     //  adc_srate1 --> [adc_puls1_psc] --> adc_puls1 --> [adc_puls1_dly] --> adc_puls1_d --> [adc_puls1_fmr] --> adc_puls1_w
     //  adc_srate2 --> [adc_puls2_psc] --> adc_puls2 --> [adc_puls2_dly] --> adc_puls2_d --> [adc_puls2_fmr] --> adc_puls2_w
-    //  
+    //
 
     wire adc_puls1, adc_puls2, adc_puls1_d, adc_puls2_d, adc_puls1_w, adc_puls2_w;
 
@@ -417,15 +417,16 @@ module top (
 
     localparam WB_ADDR_WIDTH = 8;
 
-    wire wbm_cyc;
-    wire wb_stb;
-    reg wbm_stall;
-    reg wbm_ack;
-    wire wb_we;
-    wire [WB_ADDR_WIDTH-1:0] wb_addr;
-    wire [31:0] wb_wdata;
-    wire [3:0] wb_sel;
-    reg [31:0] wbm_rdata;
+    // Wishbone master - control port - bus
+    wire wbm_cp_cyc;
+    wire wbm_cp_stb;
+    wire wbm_cp_stall;
+    wire wbm_cp_ack;
+    wire wbm_cp_we;
+    wire [WB_ADDR_WIDTH-1:0] wbm_cp_addr;
+    wire [31:0] wbm_cp_wdata;
+    wire [3:0] wbm_cp_sel;
+    wire [31:0] wbm_cp_rdata;
 
     // ------------------------
     // Wishbone master: control port
@@ -439,15 +440,15 @@ module top (
         // status
         // .o_err_crc(err_crc),
         // wb
-        .o_wb_cyc(wbm_cyc),
-        .o_wb_stb(wb_stb),
-        .i_wb_stall(wbm_stall),
-        .i_wb_ack(wbm_ack),
-        .o_wb_we(wb_we),
-        .o_wb_addr(wb_addr),
-        .o_wb_data(wb_wdata),
-        .o_wb_sel(wb_sel),
-        .i_wb_data(wbm_rdata),
+        .o_wb_cyc(wbm_cp_cyc),
+        .o_wb_stb(wbm_cp_stb),
+        .i_wb_stall(1'b0),  // TODO
+        .i_wb_ack(wbm_cp_ack),
+        .o_wb_we(wbm_cp_we),
+        .o_wb_addr(wbm_cp_addr),
+        .o_wb_data(wbm_cp_wdata),
+        .o_wb_sel(wbm_cp_sel),
+        .i_wb_data(wbm_cp_rdata),
         // rx
         .o_rx_ready(ft_rx_ready),
         .i_rx_data(ft_rx_data),
@@ -463,81 +464,120 @@ module top (
     );
 
 
+    // --------------------------------------
+    // Wishbone bus register
+    // (this increases fmax and wb latency)
+    // --------------------------------------
+
+    // Wishbone master - registered - bus
+    wire wbm_reg_cyc;
+    wire wbm_reg_stb;
+    wire wbm_reg_stall;
+    wire wbm_reg_ack;
+    wire wbm_reg_we;
+    wire [WB_ADDR_WIDTH-1:0] wbm_reg_addr;
+    wire [31:0] wbm_reg_wdata;
+    wire [3:0] wbm_reg_sel;
+    wire [31:0] wbm_reg_rdata;
+
+    wb_reg #(
+        .DATA_WIDTH(32),
+        .ADDR_WIDTH(WB_ADDR_WIDTH)
+    ) wb_reg_i (
+        .clk(sys_clk),
+        .rst(sys_rst),
+        //
+        .wbm_adr_i(wbm_cp_addr),
+        .wbm_dat_i(wbm_cp_wdata),
+        .wbm_dat_o(wbm_cp_rdata),
+        .wbm_we_i(wbm_cp_we),
+        .wbm_sel_i(wbm_cp_sel),
+        .wbm_stb_i(wbm_cp_stb),
+        .wbm_ack_o(wbm_cp_ack),
+        // .wbm_err_o()
+        // .wbm_rty_o()
+        .wbm_cyc_i(wbm_cp_cyc),
+        //
+        .wbs_adr_o(wbm_reg_addr),
+        .wbs_dat_i(wbm_reg_rdata),
+        .wbs_dat_o(wbm_reg_wdata),
+        .wbs_we_o(wbm_reg_we),
+        .wbs_sel_o(wbm_reg_sel),
+        .wbs_stb_o(wbm_reg_stb),
+        .wbs_ack_i(wbm_reg_ack),
+        .wbs_err_i(1'b0),
+        .wbs_rty_i(1'b0),
+        .wbs_cyc_o(wbm_reg_cyc)
+    );
+
     // -----------------------------------
     // Wishbone bus switch
     // -----------------------------------
 
-    reg wbs_cyc_dummy, wbs_cyc_mem, wbs_cyc_adcstr1, wbs_cyc_adcstr2;
-    wire wbs_stall_dummy, wbs_stall_mem, wbs_stall_adcstr1, wbs_stall_adcstr2;
-    wire wbs_ack_dummy, wbs_ack_mem, wbs_ack_adcstr1, wbs_ack_adcstr2;
-    wire [31:0] wbs_rdata_dummy, wbs_rdata_mem, wbs_rdata_adcstr1, wbs_rdata_adcstr2;
-
-    localparam WBS_ID_DUMMY = 0;
-    localparam WBS_ID_MEM = 1;
-    localparam WBS_ID_ADCSTR1 = 2;
-    localparam WBS_ID_ADCSTR2 = 3;
+    // Slave IDs
+    localparam WBS_ID_MEM = 0;
+    localparam WBS_ID_ADCSTR1 = 1;
+    localparam WBS_ID_ADCSTR2 = 2;
+    localparam WBS_ID_DUMMY = 3;    // dummy always the last one, since it handles all unmapped addresses
     //
-    localparam WBS_ID_COUNT = 4;
-    //
-    localparam WBS_ID_NBITS = $clog2(WBS_ID_COUNT);
+    localparam WBS_NUM = 4;
 
-    reg [WBS_ID_NBITS-1:0] wbs_id_sel_c;
-    reg [WBS_ID_NBITS-1:0] wbs_id_sel_r;
+    // Wishbone signals for each slave, flattened
+    wire [WBS_NUM-1:0] wbs_cyc;
+    wire [WBS_NUM-1:0] wbs_stb;
+    wire [WBS_NUM-1:0] wbs_stall;
+    wire [WBS_NUM-1:0] wbs_ack;
+    wire [WBS_NUM-1:0] wbs_we;
+    wire [4*WBS_NUM-1:0] wbs_sel;
+    wire [WB_ADDR_WIDTH*WBS_NUM-1:0] wbs_addr;
+    wire [32*WBS_NUM-1:0] wbs_wdata;
+    wire [32*WBS_NUM-1:0] wbs_rdata;
 
-    wire [WBS_ID_NBITS-1:0] wbs_id_sel;
-    assign wbs_id_sel = (wbm_cyc && wb_stb) ? wbs_id_sel_c : wbs_id_sel_r;
-
-    always @(*) begin
-        if (wb_addr < 8'h10) begin
-            wbs_id_sel_c = WBS_ID_MEM;
-        end else if (wb_addr == 8'h20) begin
-            wbs_id_sel_c = WBS_ID_ADCSTR1;
-        end else if (wb_addr == 8'h21) begin
-            wbs_id_sel_c = WBS_ID_ADCSTR2;
-        end else begin
-            wbs_id_sel_c = WBS_ID_DUMMY;
-        end
-    end
-
-    always @(posedge sys_clk) begin
-        if (sys_rst) begin
-            wbs_id_sel_r <= WBS_ID_DUMMY;
-        end else begin
-            if (wbm_cyc && wb_stb) begin
-                wbs_id_sel_r <= wbs_id_sel_c;
-            end
-        end
-    end
-
-    always @(*) begin
-        wbs_cyc_dummy = 1'b0;
-        wbs_cyc_mem = 1'b0;
-        wbs_cyc_adcstr1 = 1'b0;
-        wbs_cyc_adcstr2 = 1'b0;
-
-        if (wbs_id_sel == WBS_ID_MEM) begin
-            wbs_cyc_mem = wbm_cyc;
-            wbm_rdata = wbs_rdata_mem;
-            wbm_stall = wbs_stall_mem;
-            wbm_ack = wbs_ack_mem;
-        end else if (wbs_id_sel == WBS_ID_ADCSTR1) begin
-            wbs_cyc_adcstr1 = wbm_cyc;
-            wbm_rdata = wbs_rdata_adcstr1;
-            wbm_stall = wbs_stall_adcstr1;
-            wbm_ack = wbs_ack_adcstr1;
-        end else if (wbs_id_sel == WBS_ID_ADCSTR2) begin
-            wbs_cyc_adcstr2 = wbm_cyc;
-            wbm_rdata = wbs_rdata_adcstr2;
-            wbm_stall = wbs_stall_adcstr2;
-            wbm_ack = wbs_ack_adcstr2;
-        end else begin
-            // DUMMY
-            wbs_cyc_dummy = wbm_cyc;
-            wbm_rdata = wbs_rdata_dummy;
-            wbm_stall = wbs_stall_dummy;
-            wbm_ack = wbs_ack_dummy;
-        end
-    end
+    // Multiplexer
+    wb_mux #(
+        .NUM_SLAVES(WBS_NUM),
+        .ADDR_WIDTH(WB_ADDR_WIDTH),
+        .DATA_WIDTH(32)
+    ) wb_mux_i (
+        .clk(sys_clk),
+        .rst(sys_rst),
+        //
+        .wbm_adr_i(wbm_reg_addr),
+        .wbm_dat_i(wbm_reg_wdata),
+        .wbm_dat_o(wbm_reg_rdata),
+        .wbm_we_i(wbm_reg_we),
+        .wbm_sel_i(wbm_reg_sel),
+        .wbm_stb_i(wbm_reg_stb),
+        .wbm_ack_o(wbm_reg_ack),
+        // .wbm_err_o()
+        // .wbm_rty_o()
+        .wbm_cyc_i(wbm_reg_cyc),
+        //
+        .wbs_adr_o(wbs_addr),
+        .wbs_dat_i(wbs_rdata),
+        .wbs_dat_o(wbs_wdata),
+        .wbs_we_o(wbs_we),
+        .wbs_sel_o(wbs_sel),
+        .wbs_stb_o(wbs_stb),
+        .wbs_ack_i(wbs_ack),
+        .wbs_err_i({WBS_NUM{1'b0}}),
+        .wbs_rty_i({WBS_NUM{1'b0}}),
+        .wbs_cyc_o(wbs_cyc),
+        // Address map
+        // NOTE: it is reversed!! In verilog concatenation is MSB->LSB, and bit indexing is LSB->MSB
+        .wbs_addr({
+            8'h00,  // 3 - DUMMY - handle all addresses
+            8'h22,  // 2 - ADCSTR2
+            8'h21,  // 1 - ADCSTR1
+            8'h10   // 0 - MEM
+        }),
+        .wbs_addr_msk({
+            8'h00,  // 3
+            8'hFF,  // 2
+            8'hFF,  // 1
+            8'hF0   // 0
+        })
+    );
 
     // ---------------------------
     // Wishbone syncFIFOs for ADC
@@ -553,12 +593,12 @@ module top (
         .i_clk(sys_clk),
         .i_rst(sys_rst),
         // wb
-        .i_wb_cyc(wbs_cyc_adcstr1),
-        .i_wb_stb(wb_stb),
-        .o_wb_stall(wbs_stall_adcstr1),
-        .o_wb_ack(wbs_ack_adcstr1),
-        .i_wb_we(wb_we),
-        .o_wb_data(wbs_rdata_adcstr1),
+        .i_wb_cyc(wbs_cyc[WBS_ID_ADCSTR1]),
+        .i_wb_stb(wbs_stb[WBS_ID_ADCSTR1]),
+        .o_wb_stall(wbs_stall[WBS_ID_ADCSTR1]),
+        .o_wb_ack(wbs_ack[WBS_ID_ADCSTR1]),
+        .i_wb_we(wbs_we[WBS_ID_ADCSTR1]),
+        .o_wb_data(wbs_rdata[32*(WBS_ID_ADCSTR1+1)-1:32*WBS_ID_ADCSTR1]),
         // rx stream
         .i_rx_valid(!adcstr1_valid_n),
         .o_rx_ready(adcstr1_ready),
@@ -578,12 +618,12 @@ module top (
         .i_clk(sys_clk),
         .i_rst(sys_rst),
         // wb
-        .i_wb_cyc(wbs_cyc_adcstr2),
-        .i_wb_stb(wb_stb),
-        .o_wb_stall(wbs_stall_adcstr2),
-        .o_wb_ack(wbs_ack_adcstr2),
-        .i_wb_we(wb_we),
-        .o_wb_data(wbs_rdata_adcstr2),
+        .i_wb_cyc(wbs_cyc[WBS_ID_ADCSTR2]),
+        .i_wb_stb(wbs_stb[WBS_ID_ADCSTR2]),
+        .o_wb_stall(wbs_stall[WBS_ID_ADCSTR2]),
+        .o_wb_ack(wbs_ack[WBS_ID_ADCSTR2]),
+        .i_wb_we(wbs_we[WBS_ID_ADCSTR2]),
+        .o_wb_data(wbs_rdata[32*(WBS_ID_ADCSTR2+1)-1:32*WBS_ID_ADCSTR2]),
         // rx stream
         .i_rx_valid(!adcstr2_valid_n),
         .o_rx_ready(adcstr2_ready),
@@ -596,7 +636,7 @@ module top (
         // .o_fifo_overflow(fifo_overflow),
         // .o_fifo_underflow(fifo_underflow)
     );
-    
+
     // -----------------------------------------------
     // EMREQ valid/ready state machine for ADC fifos
     // -----------------------------------------------
@@ -633,11 +673,11 @@ module top (
     wb_dummy wb_dummy_i (
         .i_clk(sys_clk),
         // wb
-        .i_wb_cyc(wbs_cyc_dummy),
-        .i_wb_stb(wb_stb),
-        .o_wb_stall(wbs_stall_dummy),
-        .o_wb_ack(wbs_ack_dummy),
-        .o_wb_data(wbs_rdata_dummy)
+        .i_wb_cyc(wbs_cyc[WBS_ID_DUMMY]),
+        .i_wb_stb(wbs_stb[WBS_ID_DUMMY]),
+        .o_wb_stall(wbs_stall[WBS_ID_DUMMY]),
+        .o_wb_ack(wbs_ack[WBS_ID_DUMMY]),
+        .o_wb_data(wbs_rdata[32*(WBS_ID_DUMMY+1)-1:32*WBS_ID_DUMMY])
     );
 
     // ------------------------
@@ -649,15 +689,15 @@ module top (
         .i_clk(sys_clk),
         .i_rst(sys_rst),
         // wb
-        .i_wb_cyc(wbs_cyc_mem),
-        .i_wb_stb(wb_stb),
-        .o_wb_stall(wbs_stall_mem),
-        .o_wb_ack(wbs_ack_mem),
-        .i_wb_we(wb_we),
-        .i_wb_addr(wb_addr[3:0]),
-        .i_wb_data(wb_wdata),
-        .i_wb_sel(wb_sel),
-        .o_wb_data(wbs_rdata_mem)
+        .i_wb_cyc(wbs_cyc[WBS_ID_MEM]),
+        .i_wb_stb(wbs_stb[WBS_ID_MEM]),
+        .o_wb_stall(wbs_stall[WBS_ID_MEM]),
+        .o_wb_ack(wbs_ack[WBS_ID_MEM]),
+        .i_wb_we(wbs_we[WBS_ID_MEM]),
+        .i_wb_addr(wbs_addr[WB_ADDR_WIDTH*WBS_ID_MEM+4-1:WB_ADDR_WIDTH*WBS_ID_MEM]),
+        .i_wb_data(wbs_wdata[32*(WBS_ID_MEM+1)-1:32*WBS_ID_MEM]),
+        .i_wb_sel(wbs_sel[4*(WBS_ID_MEM+1)-1:4*WBS_ID_MEM]),
+        .o_wb_data(wbs_rdata[32*(WBS_ID_MEM+1)-1:32*WBS_ID_MEM])
     );
 
     // ------------------------
