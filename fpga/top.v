@@ -404,6 +404,19 @@ module top (
         .o_underflow(adc1_fifo_udfl)
     );
 
+    // OVFL/UDFL flags latch
+    wire adc1_fifo_ovfl_lclr, adc1_fifo_udfl_lclr;
+    reg adc1_fifo_ovfl_lval, adc1_fifo_udfl_lval;
+    always @(posedge sys_clk) begin
+        if (sys_rst) begin
+            adc1_fifo_ovfl_lval <= 1'b0;
+            adc1_fifo_udfl_lval <= 1'b0;
+        end else begin
+            adc1_fifo_ovfl_lval <= adc1_fifo_ovfl | (adc1_fifo_ovfl_lval & ~adc1_fifo_ovfl_lclr);
+            adc1_fifo_udfl_lval <= adc1_fifo_udfl | (adc1_fifo_udfl_lval & ~adc1_fifo_udfl_lclr);
+        end
+    end
+
     // ADC2
     wire adc2_fifo_empty, adc2_fifo_full, adc2_fifo_hfull, adc2_fifo_ovfl, adc2_fifo_udfl;
     wire [31:0] adc2_fifo_data;
@@ -430,6 +443,19 @@ module top (
         .o_overflow(adc2_fifo_ovfl),
         .o_underflow(adc2_fifo_udfl)
     );
+
+    // OVFL/UDFL flags latch
+    wire adc2_fifo_ovfl_lclr, adc2_fifo_udfl_lclr;
+    reg adc2_fifo_ovfl_lval, adc2_fifo_udfl_lval;
+    always @(posedge sys_clk) begin
+        if (sys_rst) begin
+            adc2_fifo_ovfl_lval <= 1'b0;
+            adc2_fifo_udfl_lval <= 1'b0;
+        end else begin
+            adc2_fifo_ovfl_lval <= adc2_fifo_ovfl | (adc2_fifo_ovfl_lval & ~adc2_fifo_ovfl_lclr);
+            adc2_fifo_udfl_lval <= adc2_fifo_udfl | (adc2_fifo_udfl_lval & ~adc2_fifo_udfl_lclr);
+        end
+    end
 
     // -----------------------------------------------
     // EMREQ valid/ready state machine for ADC fifos
@@ -532,7 +558,7 @@ module top (
         // wb
         .o_wb_cyc(wbm_cp_cyc),
         .o_wb_stb(wbm_cp_stb),
-        .i_wb_stall(1'b0),  // TODO
+        .i_wb_stall(wbm_cp_stall),
         .i_wb_ack(wbm_cp_ack),
         .o_wb_we(wbm_cp_we),
         .o_wb_addr(wbm_cp_addr),
@@ -553,53 +579,6 @@ module top (
         .i_emreqs(pack_mreq(1'b0, 1'b0, MREQ_WSIZE_VAL_4BYTE, 8'hFF, 32'h00000080))
     );
 
-
-    // --------------------------------------
-    // Wishbone bus register
-    // (this increases fmax and wb latency)
-    // --------------------------------------
-
-    // Wishbone master - registered - bus
-    wire wbm_reg_cyc;
-    wire wbm_reg_stb;
-    wire wbm_reg_stall;
-    wire wbm_reg_ack;
-    wire wbm_reg_we;
-    wire [WB_ADDR_WIDTH-1:0] wbm_reg_addr;
-    wire [31:0] wbm_reg_wdata;
-    wire [3:0] wbm_reg_sel;
-    wire [31:0] wbm_reg_rdata;
-
-    wb_reg #(
-        .DATA_WIDTH(32),
-        .ADDR_WIDTH(WB_ADDR_WIDTH)
-    ) wb_reg_i (
-        .clk(sys_clk),
-        .rst(sys_rst),
-        //
-        .wbm_adr_i(wbm_cp_addr),
-        .wbm_dat_i(wbm_cp_wdata),
-        .wbm_dat_o(wbm_cp_rdata),
-        .wbm_we_i(wbm_cp_we),
-        .wbm_sel_i(wbm_cp_sel),
-        .wbm_stb_i(wbm_cp_stb),
-        .wbm_ack_o(wbm_cp_ack),
-        // .wbm_err_o()
-        // .wbm_rty_o()
-        .wbm_cyc_i(wbm_cp_cyc),
-        //
-        .wbs_adr_o(wbm_reg_addr),
-        .wbs_dat_i(wbm_reg_rdata),
-        .wbs_dat_o(wbm_reg_wdata),
-        .wbs_we_o(wbm_reg_we),
-        .wbs_sel_o(wbm_reg_sel),
-        .wbs_stb_o(wbm_reg_stb),
-        .wbs_ack_i(wbm_reg_ack),
-        .wbs_err_i(1'b0),
-        .wbs_rty_i(1'b0),
-        .wbs_cyc_o(wbm_reg_cyc)
-    );
-
     // --------------------------------------
     // Control and status registers
     // --------------------------------------
@@ -613,15 +592,15 @@ module top (
         .i_rst_n(~sys_rst),
 
         // WISHBONE
-        .i_wb_cyc(wbm_reg_cyc),
-        .i_wb_stb(wbm_reg_stb),
-            //.o_wb_stall()
-        .i_wb_adr({wbm_reg_addr, 2'b0}),
-        .i_wb_we(wbm_reg_we),
-        .i_wb_dat(wbm_reg_wdata),
-        .i_wb_sel(wbm_reg_sel),
-        .o_wb_ack(wbm_reg_ack),
-        .o_wb_dat(wbm_reg_rdata),
+        .i_wb_cyc(wbm_cp_cyc),
+        .i_wb_stb(wbm_cp_stb),
+        .o_wb_stall(wbm_cp_stall),
+        .i_wb_adr({wbm_cp_addr, 2'b0}),
+        .i_wb_we(wbm_cp_we),
+        .i_wb_dat(wbm_cp_wdata),
+        .i_wb_sel(wbm_cp_sel),
+        .o_wb_ack(wbm_cp_ack),
+        .o_wb_dat(wbm_cp_rdata),
 
         // REGS: SYS
         .o_sys_con_sys_rst(sys_rst_req),
@@ -642,16 +621,20 @@ module top (
         .i_adc_fifo1_sts_empty(adc1_fifo_empty),
         .i_adc_fifo1_sts_full(adc1_fifo_full),
         .i_adc_fifo1_sts_hfull(adc1_fifo_hfull),
-        .i_adc_fifo1_sts_ovfl(adc1_fifo_ovfl),
-        .i_adc_fifo1_sts_udfl(adc1_fifo_udfl),
+        .i_adc_fifo1_sts_ovfl(adc1_fifo_ovfl_lval),
+        .o_adc_fifo1_sts_ovfl_read_trigger(adc1_fifo_ovfl_lclr),
+        .i_adc_fifo1_sts_udfl(adc1_fifo_udfl_lval),
+        .o_adc_fifo1_sts_udfl_read_trigger(adc1_fifo_udfl_lclr),
         .i_adc_fifo1_port_data(adc1_fifo_data),
         .o_adc_fifo1_port_data_read_trigger(adc1_fifo_rd),
         // REGS: ADC2
         .i_adc_fifo2_sts_empty(adc2_fifo_empty),
         .i_adc_fifo2_sts_full(adc2_fifo_full),
         .i_adc_fifo2_sts_hfull(adc2_fifo_hfull),
-        .i_adc_fifo2_sts_ovfl(adc2_fifo_ovfl),
-        .i_adc_fifo2_sts_udfl(adc2_fifo_udfl),
+        .i_adc_fifo2_sts_ovfl(adc2_fifo_ovfl_lval),
+        .o_adc_fifo2_sts_ovfl_read_trigger(adc2_fifo_ovfl_lclr),
+        .i_adc_fifo2_sts_udfl(adc2_fifo_udfl_lval),
+        .o_adc_fifo2_sts_udfl_read_trigger(adc2_fifo_udfl_lclr),
         .i_adc_fifo2_port_data(adc2_fifo_data),
         .o_adc_fifo2_port_data_read_trigger(adc2_fifo_rd),
         // REGS: FTUN
@@ -764,8 +747,7 @@ module top (
     localparam FT_AFIFO_ASIZE = 8;
 
     // Two asynchronous FIFOs: one for Rx stream, one for Tx stream
-    // To fit nicely on iCE40, each FIFO uses one whole 4K BRAM block
-    // NOTE: resets here are asynchronous assert -> synchronous release
+    // NOTE: resets here are asynchronous assert, synchronous release
 
     // ft_clk domain
     wire ft_afifo_rx_wfull;
