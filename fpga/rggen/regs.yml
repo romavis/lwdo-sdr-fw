@@ -1,0 +1,24 @@
+register_blocks:
+  - name: wb_regs
+    byte_size: 256
+    registers:
+    - name: version
+      offset_address: 0x00
+      bit_fields:
+      - { name: seq,          bit_assignment: { width: 16 },  type: rof,    initial_value: 0x0001 }
+      - { name: magic,        bit_assignment: { width: 16 },  type: rof,    initial_value: 0x5D12 }
+
+    - name: reset
+      offset_address: 0x04
+      bit_fields:
+      - { name: sys_rst,      bit_assignment: { width: 1 },   type: w1,     initial_value: 0, comment: write 1 to perform complete system reset }
+
+    - name: adcstr1_rx
+      offset_address: 0x08
+      bit_fields:
+      - { name: data,         bit_assignment: { width: 32 },  type: rotrg }
+
+    - name: adcstr2_rx
+      offset_address: 0x0C
+      bit_fields:
+      - { name: data,         bit_assignment: { width: 32 },  type: rotrg }

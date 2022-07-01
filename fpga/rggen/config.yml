@@ -1,0 +1,4 @@
+bus_width:      32
+address_width:  10
+protocol:       wishbone
+

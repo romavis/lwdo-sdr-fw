@@ -1,9 +1,17 @@
 # Makefile template borrowed from https://gist.github.com/DurandA/15c83f37ee64b185801f88fbe0a0f25c
 
+
+# ----------------------------------------------------------------------------
+# Variables
+# ----------------------------------------------------------------------------
+
 OUT_DIR = ./out
 OUT_TEST_DIR = $(OUT_DIR)/test
 SRC_DIR = .
 TEST_DIR = $(SRC_DIR)/test
+
+RGGEN_SRC = $(SRC_DIR)/rggen
+RGGEN_OUT = $(SRC_DIR)/rggen/out
 
 PNRGUI ?= 0
 PROJ = top
@@ -66,6 +74,37 @@ V_MODULES += \
 V_INCLUDE_PATHS += \
 	$(SRC_DIR)/3rdparty/verilog-wishbone/rtl
 
+# 3rdparty verilog modules: rggen-verilog-rtl
+RGGEN_VERILOG_RTL_ROOT = $(SRC_DIR)/3rdparty/rggen-verilog-rtl
+
+V_INCLUDE_PATHS += \
+	$(RGGEN_VERILOG_RTL_ROOT)
+
+V_MODULES += \
+	$(RGGEN_VERILOG_RTL_ROOT)/rggen_mux.v \
+	$(RGGEN_VERILOG_RTL_ROOT)/rggen_bit_field.v \
+	$(RGGEN_VERILOG_RTL_ROOT)/rggen_bit_field_w01trg.v \
+	$(RGGEN_VERILOG_RTL_ROOT)/rggen_address_decoder.v \
+	$(RGGEN_VERILOG_RTL_ROOT)/rggen_register_common.v \
+	$(RGGEN_VERILOG_RTL_ROOT)/rggen_default_register.v \
+	$(RGGEN_VERILOG_RTL_ROOT)/rggen_external_register.v \
+	$(RGGEN_VERILOG_RTL_ROOT)/rggen_indirect_register.v \
+	$(RGGEN_VERILOG_RTL_ROOT)/rggen_adapter_common.v \
+	$(RGGEN_VERILOG_RTL_ROOT)/rggen_apb_adapter.v \
+	$(RGGEN_VERILOG_RTL_ROOT)/rggen_apb_bridge.v \
+	$(RGGEN_VERILOG_RTL_ROOT)/rggen_axi4lite_skid_buffer.v \
+	$(RGGEN_VERILOG_RTL_ROOT)/rggen_axi4lite_adapter.v \
+	$(RGGEN_VERILOG_RTL_ROOT)/rggen_axi4lite_bridge.v \
+	$(RGGEN_VERILOG_RTL_ROOT)/rggen_wishbone_adapter.v \
+	$(RGGEN_VERILOG_RTL_ROOT)/rggen_wishbone_bridge.v
+
+# rggen-generated verilog modules
+RGGEN_INPUTS = \
+	$(RGGEN_SRC)/regs.yml
+
+V_MODULES += \
+	$(RGGEN_OUT)/wb_regs.v
+
 # Tests
 TESTS := \
 	test_syncfifo \
@@ -75,7 +114,12 @@ TESTS := \
 	test_wb_ctrl_port \
 	test_wb_rxfifo \
 	test_dac8551 \
-	test_fastcounter
+	test_fastcounter \
+	test_wb_regs
+
+# ----------------------------------------------------------------------------
+# Rules
+# ----------------------------------------------------------------------------
 
 # Directories
 $(OUT_DIR):
@@ -83,6 +127,14 @@ $(OUT_DIR):
 
 $(OUT_TEST_DIR):
 	mkdir -p $(OUT_TEST_DIR)
+
+# RGGEN register generator
+# This requires you to:
+#	1. Install rggen with all its dependencies (https://github.com/rggen/rggen)
+#	2. Install rggen-verilog plugin (https://github.com/rggen/rggen-verilog)
+#	3. Make sure that rggen is on your PATH (e.g. `export PATH=$PATH:$HOME/.gem/ruby/<version>/bin`)
+$(RGGEN_OUT)/%.v $(RGGEN_OUT)/%.md: $(RGGEN_INPUTS) $(RGGEN_SRC)/config.yml
+	rggen --plugin rggen-verilog -c $(RGGEN_SRC)/config.yml -o $(RGGEN_OUT) $(RGGEN_INPUTS)
 
 # Tests
 .PHONY: test
