@@ -1,11 +1,11 @@
 `timescale 1 ns/10 ps  // time-unit = 1 ns, precision = 10 ps
 
 
-module test_wb_regs;
+module test_lwdo_regs;
 
     localparam WB_ADDR_WIDTH = 8;
 
-    wb_regs #(
+    lwdo_regs #(
         .ADDRESS_WIDTH(WB_ADDR_WIDTH + 2),
         .DEFAULT_READ_DATA(32'hDEADBEEF)
     ) dut (
@@ -90,6 +90,14 @@ module test_wb_regs;
         wb_addr <= 'h00;
         wb_we <= 0;
         wb_single_transaction();
+
+        // Write magic
+        wb_addr <= 'h00;
+        wb_sel <= 4'b1111;
+        wb_data_w <= 32'h00000000;
+        wb_we <= 1;
+        wb_single_transaction();
+        wb_we <= 0;
 
         // Read reset
         wb_addr <= 'h01;

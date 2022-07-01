@@ -100,10 +100,10 @@ V_MODULES += \
 
 # rggen-generated verilog modules
 RGGEN_INPUTS = \
-	$(RGGEN_SRC)/regs.yml
+	$(RGGEN_SRC)/lwdo_regs.yml
 
 V_MODULES += \
-	$(RGGEN_OUT)/wb_regs.v
+	$(RGGEN_OUT)/lwdo_regs.v
 
 # Tests
 TESTS := \
@@ -115,7 +115,7 @@ TESTS := \
 	test_wb_rxfifo \
 	test_dac8551 \
 	test_fastcounter \
-	test_wb_regs
+	test_lwdo_regs
 
 # ----------------------------------------------------------------------------
 # Rules
@@ -132,9 +132,10 @@ $(OUT_TEST_DIR):
 # This requires you to:
 #	1. Install rggen with all its dependencies (https://github.com/rggen/rggen)
 #	2. Install rggen-verilog plugin (https://github.com/rggen/rggen-verilog)
-#	3. Make sure that rggen is on your PATH (e.g. `export PATH=$PATH:$HOME/.gem/ruby/<version>/bin`)
-$(RGGEN_OUT)/%.v $(RGGEN_OUT)/%.md: $(RGGEN_INPUTS) $(RGGEN_SRC)/config.yml
-	rggen --plugin rggen-verilog -c $(RGGEN_SRC)/config.yml -o $(RGGEN_OUT) $(RGGEN_INPUTS)
+#	3. Install rggen-c-header plugin (https://github.com/rggen/rggen-c-header)
+#	4. Make sure that rggen is on your PATH (e.g. `export PATH=$PATH:$HOME/.gem/ruby/<version>/bin`)
+$(RGGEN_OUT)/%.v $(RGGEN_OUT)/%.h $(RGGEN_OUT)/%.md: $(RGGEN_INPUTS) $(RGGEN_SRC)/config.yml
+	rggen --plugin rggen-verilog --plugin rggen-c-header -c $(RGGEN_SRC)/config.yml -o $(RGGEN_OUT) $(RGGEN_INPUTS)
 
 # Tests
 .PHONY: test
@@ -150,13 +151,18 @@ $(OUT_TEST_DIR)/test_%.vcd: $(OUT_TEST_DIR)/test_%
 	@echo "Running test: $<"
 	cd $(OUT_TEST_DIR); $(abspath $<)
 
-# Bitstream
+# Synthesis
 $(OUT_DIR)/top.json: $(V_MODULES)
-	yosys -p 'synth_ice40 -top $(PROJ) -json $@' $^
+	(ulimit -s 524288; yosys \
+		-f 'verilog $(foreach path,$(V_INCLUDE_PATHS),-I $(path))' \
+		-p 'synth_ice40 -top $(PROJ) -json $@' \
+		$^)
 
+# Place-and-route
 $(OUT_DIR)/%.asc: $(OUT_DIR)/%.json $(PIN_DEF)
 	nextpnr-ice40 --randomize-seed --$(DEVICE) --package $(PACKAGE) --json $< --pcf $(PIN_DEF) --asc $@ $(NEXTPNR_EXTRA)
 
+# Bitstream generation
 $(OUT_DIR)/%.bin: $(OUT_DIR)/%.asc
 	icepack -v $< $@
 

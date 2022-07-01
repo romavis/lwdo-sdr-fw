@@ -95,9 +95,9 @@ module top (
     // Because we want it to be exactly the same clock as ADC's, we set sys_clk=~p_adc_sclk_gbin
     wire sys_clk = ~p_adc_sclk_gbin;
 
-    // ----------------------------
+    // --------------------------------------------------
     // System reset generator
-    // ----------------------------
+    // --------------------------------------------------
 
     // Reset asserted on:
     //  - FPGA reconfiguration (power on)
@@ -107,9 +107,6 @@ module top (
     reg sys_rst = 1'b1;
     wire sys_rst_req;
 
-    // TODO: use this request line
-    assign sys_rst_req = 1'b0;
-
     always @(posedge sys_clk or posedge sys_rst_req) begin
         sys_rst <= 1'b0;
         if (sys_rst_req) begin
@@ -117,127 +114,144 @@ module top (
         end
     end
 
-    // ----------------------------------------
-    //      ADC1,2 sample rate generators
+    // --------------------------------------------------
+    //      ADCT - ADC timing generators
+    // --------------------------------------------------
+
+
+    // Sample rate generators (SRATE pulses)
     //
-    //                      +----> [adc_srate1_div] ----> adc_srate1 ----> [ADC1]
+    //                      +----> [adct_srate1_psc] ----> adct_srate1 ----> [ADC1]
     //  sys_clk (80MHz) ->--+
-    //                      +----> [adc_srate2_div] ----> adc_srate2 ----> [ADC2]
+    //                      +----> [adct_srate2_psc] ----> adct_srate2 ----> [ADC2]
     //
-    wire adc_srate1, adc_srate2;
+    wire adct_srate1, adct_srate2;
+
+    // CSR (control & status register) values
+    wire csr_adct_srate1_en, csr_adct_srate2_en;
+    wire [7:0] csr_adct_srate1_psc_div, csr_adct_srate2_psc_div;
 
     fastcounter #(
         .NBITS(8)
-    ) adc_srate1_psc (
+    ) adct_srate1_psc (
         .i_clk(sys_clk),
         .i_rst(sys_rst),
         .i_mode(1'b0),      // AUTORELOAD
-        .i_en(1'b1),
+        .i_en(csr_adct_srate1_en),
         .i_load(1'b0),
-        .i_load_q(8'd19),   // 80M/(1+19)=4M
-        .o_carry(adc_srate1)
+        .i_load_q(csr_adct_srate1_psc_div),
+        .o_carry(adct_srate1)
     );
 
     fastcounter #(
         .NBITS(8)
-    ) adc_srate2_psc (
+    ) adct_srate2_psc (
         .i_clk(sys_clk),
         .i_rst(sys_rst),
         .i_mode(1'b0),      // AUTORELOAD
-        .i_en(1'b1),
+        .i_en(csr_adct_srate2_en),
         .i_load(1'b0),
-        .i_load_q(8'd79),   // 80M/(1+79)=1M
-        .o_carry(adc_srate2)
+        .i_load_q(csr_adct_srate2_psc_div),
+        .o_carry(adct_srate2)
     );
 
-    // ----------------------------------------
-    //      Timing pulse generators
+    //  Timing pulse generators
     //
-    //  adc_srate1 --> [adc_puls1_psc] --> adc_puls1 --> [adc_puls1_dly] --> adc_puls1_d --> [adc_puls1_fmr] --> adc_puls1_w
-    //  adc_srate2 --> [adc_puls2_psc] --> adc_puls2 --> [adc_puls2_dly] --> adc_puls2_d --> [adc_puls2_fmr] --> adc_puls2_w
+    //  adct_srate1 --> [adct_puls1_psc] --> adct_puls1 --> [adct_puls1_dly] --> adct_puls1_d --> [adct_puls1_fmr] --> adct_puls1_w
+    //  adct_srate2 --> [adct_puls2_psc] --> adct_puls2 --> [adct_puls2_dly] --> adct_puls2_d --> [adct_puls2_fmr] --> adct_puls2_w
     //
 
-    wire adc_puls1, adc_puls2, adc_puls1_d, adc_puls2_d, adc_puls1_w, adc_puls2_w;
+    wire adct_puls1, adct_puls2;        // single-cycle pulses synced with adct_srate*
+    wire adct_puls1_d, adct_puls2_d;    // single-cycle pulses delayed w.r.t adct_puls*
+    wire adct_puls1_w, adct_puls2_w;    // width-controlled version of adct_puls*_d
+
+    // CSR values
+    wire csr_adct_puls1_en, csr_adct_puls2_en;
+    wire [22:0] csr_adct_puls1_psc_div, csr_adct_puls2_psc_div;
+    wire [8:0] csr_adct_puls1_dly, csr_adct_puls2_dly;
+    wire [15:0] csr_adct_puls1_pwidth, csr_adct_puls2_pwidth;
 
     // Pulse frequency prescalers
     fastcounter #(
         .NBITS(23)
-    ) adc_puls1_psc (
+    ) adct_puls1_psc (
         .i_clk(sys_clk),
         .i_rst(sys_rst),
         .i_mode(1'b0),      // AUTORELOAD
-        .i_en(adc_srate1),
+        .i_en(adct_srate1 & csr_adct_puls1_en),
         .i_load(1'b0),
-        .i_load_q(23'd4_000_000),
-        .o_carry(adc_puls1)
+        .i_load_q(csr_adct_puls1_psc_div),
+        .o_carry(adct_puls1)
     );
 
     fastcounter #(
         .NBITS(23)
-    ) adc_puls2_psc (
+    ) adct_puls2_psc (
         .i_clk(sys_clk),
         .i_rst(sys_rst),
         .i_mode(1'b0),      // AUTORELOAD
-        .i_en(adc_srate2),
+        .i_en(adct_srate2 & csr_adct_puls2_en),
         .i_load(1'b0),
-        .i_load_q(23'd1_000_000),
-        .o_carry(adc_puls2)
+        .i_load_q(csr_adct_puls2_psc_div),
+        .o_carry(adct_puls2)
     );
 
     // Pulse micro-delay (delay is in adc_clk periods, max delay is up to 2x adc_srate periods)
     fastcounter #(
         .NBITS(9)
-    ) adc_puls1_dly (
+    ) adct_puls1_dly (
         .i_clk(sys_clk),
         .i_rst(sys_rst),
         .i_mode(1'b1),      // ONESHOT
         .i_en(1'b1),
-        .i_load(adc_puls1),
-        .i_load_q(9'd18),
-        .o_zpulse(adc_puls1_d)
+        .i_load(adct_puls1),
+        .i_load_q(csr_adct_puls1_dly),
+        .o_zpulse(adct_puls1_d)
     );
 
     fastcounter #(
         .NBITS(9)
-    ) adc_puls2_dly (
+    ) adct_puls2_dly (
         .i_clk(sys_clk),
         .i_rst(sys_rst),
         .i_mode(1'b1),      // ONESHOT
         .i_en(1'b1),
-        .i_load(adc_puls2),
-        .i_load_q(9'd78),
-        .o_zpulse(adc_puls2_d)
+        .i_load(adct_puls2),
+        .i_load_q(csr_adct_puls2_dly),
+        .o_zpulse(adct_puls2_d)
     );
 
     // Pulse width formers (width specified in adc_srate periods)
     fastcounter #(
         .NBITS(16)  // enough for 16ms pulse @ adc_srate=4MHz
-    ) adc_puls1_fmr (
+    ) adct_puls1_fmr (
         .i_clk(sys_clk),
         .i_rst(sys_rst),
         .i_mode(1'b1),      // ONESHOT
-        .i_en(adc_srate1),
-        .i_load(adc_puls1_d),
-        .i_load_q(16'd40000),
-        .o_nzero(adc_puls1_w)
+        .i_en(adct_srate1),
+        .i_load(adct_puls1_d),
+        .i_load_q(csr_adct_puls1_pwidth),
+        .o_nzero(adct_puls1_w)
     );
 
     fastcounter #(
         .NBITS(16)
-    ) adc_puls2_fmr (
+    ) adct_puls2_fmr (
         .i_clk(sys_clk),
         .i_rst(sys_rst),
         .i_mode(1'b1),      // ONESHOT
-        .i_en(adc_srate2),
-        .i_load(adc_puls2_d),
-        .i_load_q(16'd10000),
-        .o_nzero(adc_puls2_w)
+        .i_en(adct_srate2),
+        .i_load(adct_puls2_d),
+        .i_load_q(csr_adct_puls2_pwidth),
+        .o_nzero(adct_puls2_w)
     );
 
-    // ------------------
-    // ADCs
-    // ------------------
+    // --------------------------------------------------
+    //     ADC - Analog-to-digital converters
+    // --------------------------------------------------
 
+    wire adc1_start = adct_srate1;
+    wire adc2_start = adct_srate2;
     wire adc1_rdy;
     wire adc2_rdy;
     wire [13:0] adc1_data_a;
@@ -253,7 +267,7 @@ module top (
         .i_if_sdata_b(p_adc1_sdb),
         // Control
         .i_rst(sys_rst),
-        .i_sync(adc_srate1),
+        .i_sync(adc1_start),
         // Data
         .o_ready(adc1_rdy),
         .o_sample_a(adc1_data_a),
@@ -268,7 +282,7 @@ module top (
         .i_if_sdata_b(p_adc2_sdb),
         // Control
         .i_rst(sys_rst),
-        .i_sync(adc_srate2),
+        .i_sync(adc2_start),
         // Data
         .o_ready(adc2_rdy),
         .o_sample_a(adc2_data_a),
@@ -279,18 +293,18 @@ module top (
     // ADC timing pulse latches
     // -------------------------
 
-    // Here we latch adc_puls1/2 on adc_srate1/2 pulse (start of conversion),
+    // Here we latch adct_puls1/2 on adc1/2_start pulse (start of conversion),
     // so that it can be read later on adc1/2_rdy pulse (end of conversion)
-    reg adc_puls1_lat, adc_puls2_lat;
+    reg adc1_puls, adc2_puls;
     always @(posedge sys_clk) begin
         if (sys_rst) begin
-            adc_puls1_lat <= 1'b0;
-            adc_puls2_lat <= 1'b0;
+            adc1_puls <= 1'b0;
+            adc2_puls <= 1'b0;
         end else begin
-            if (adc_srate1)
-                adc_puls1_lat <= adc_puls1;
-            if (adc_srate2)
-                adc_puls2_lat <= adc_puls2;
+            if (adc1_start)
+                adc1_puls <= adct_puls1;
+            if (adc2_start)
+                adc2_puls <= adct_puls2;
         end
     end
 
@@ -306,10 +320,10 @@ module top (
     // Each stream produces 32-bit data words with following layout:
     // MSB
     //  31      - 0
-    //  30      - adc_puls1(2)_lat
-    //  29:16   - adc1/2_data_b
+    //  30      - adc1(2)_puls
+    //  29:16   - adc1(2)_data_b
     //  15      - 0
-    //  14      - adc_puls1(2)_lat
+    //  14      - adc1(2)_puls
     //  13:0    - adc1(2)_data_a
     // LSB
     //
@@ -317,46 +331,164 @@ module top (
     // adc_puls pulse generators to the data stream
 
     // ADC1
-    reg [31:0] adcstr1_data;
-    reg adcstr1_valid;
-    wire adcstr1_ready;
+    reg [31:0] adc1_str_data;
+    reg adc1_str_valid;
+    wire adc1_str_ready;
 
     always @(posedge sys_clk) begin
         if (sys_rst) begin
-            adcstr1_data <= 32'b0;
-            adcstr1_valid <= 1'b0;
+            adc1_str_data <= 32'b0;
+            adc1_str_valid <= 1'b0;
         end else begin
             if (adc1_rdy) begin
-                adcstr1_valid <= 1'b1;
-                adcstr1_data <= {1'b0, adc_puls1_lat, adc1_data_b, 1'b0, adc_puls1_lat, adc1_data_a};
+                adc1_str_valid <= 1'b1;
+                adc1_str_data <= {1'b0, adc1_puls, adc1_data_b, 1'b0, adc1_puls, adc1_data_a};
             end else begin
-                if (adcstr1_ready) begin
-                    adcstr1_valid <= 1'b0;
+                if (adc1_str_ready) begin
+                    adc1_str_valid <= 1'b0;
                 end
             end
         end
     end
 
     // ADC2
-    reg [31:0] adcstr2_data;
-    reg adcstr2_valid;
-    wire adcstr2_ready;
+    reg [31:0] adc2_str_data;
+    reg adc2_str_valid;
+    wire adc2_str_ready;
 
     always @(posedge sys_clk) begin
         if (sys_rst) begin
-            adcstr2_data <= 32'b0;
-            adcstr2_valid <= 1'b0;
+            adc2_str_data <= 32'b0;
+            adc2_str_valid <= 1'b0;
         end else begin
             if (adc2_rdy) begin
-                adcstr2_valid <= 1'b1;
-                adcstr2_data <= {1'b0, adc_puls2_lat, adc2_data_b, 1'b0, adc_puls2_lat, adc2_data_a};
+                adc2_str_valid <= 1'b1;
+                adc2_str_data <= {1'b0, adc2_puls, adc2_data_b, 1'b0, adc2_puls, adc2_data_a};
             end else begin
-                if (adcstr2_ready) begin
-                    adcstr2_valid <= 1'b0;
+                if (adc2_str_ready) begin
+                    adc2_str_valid <= 1'b0;
                 end
             end
         end
     end
+
+    // ---------------------------
+    //          ADC FIFOs
+    // ---------------------------
+    localparam ADC_FIFO_ASIZE = 9;
+
+    // ADC1
+    wire adc1_fifo_empty, adc1_fifo_full, adc1_fifo_hfull, adc1_fifo_ovfl, adc1_fifo_udfl;
+    wire [31:0] adc1_fifo_data;
+    wire adc1_fifo_rd;
+
+    assign adc1_str_ready = !adc1_fifo_full;
+
+    syncfifo #(
+        .ADDR_WIDTH(ADC_FIFO_ASIZE),
+        .DATA_WIDTH(32)
+    ) adc1_fifo (
+        .i_clk(sys_clk),
+        .i_rst(sys_rst),
+        // data
+        .i_data(adc1_str_data),
+        .o_data(adc1_fifo_data),
+        // control
+        .i_wr(adc1_str_valid),
+        .i_rd(adc1_fifo_rd),
+        // status
+        .o_empty(adc1_fifo_empty),
+        .o_full(adc1_fifo_full),
+        .o_half_full(adc1_fifo_hfull),
+        .o_overflow(adc1_fifo_ovfl),
+        .o_underflow(adc1_fifo_udfl)
+    );
+
+    // ADC2
+    wire adc2_fifo_empty, adc2_fifo_full, adc2_fifo_hfull, adc2_fifo_ovfl, adc2_fifo_udfl;
+    wire [31:0] adc2_fifo_data;
+    wire adc2_fifo_rd;
+
+    assign adc2_str_ready = !adc2_fifo_full;
+
+    syncfifo #(
+        .ADDR_WIDTH(ADC_FIFO_ASIZE),
+        .DATA_WIDTH(32)
+    ) adc2_fifo (
+        .i_clk(sys_clk),
+        .i_rst(sys_rst),
+        // data
+        .i_data(adc2_str_data),
+        .o_data(adc2_fifo_data),
+        // control
+        .i_wr(adc2_str_valid),
+        .i_rd(adc2_fifo_rd),
+        // status
+        .o_empty(adc2_fifo_empty),
+        .o_full(adc2_fifo_full),
+        .o_half_full(adc2_fifo_hfull),
+        .o_overflow(adc2_fifo_ovfl),
+        .o_underflow(adc2_fifo_udfl)
+    );
+
+    // -----------------------------------------------
+    // EMREQ valid/ready state machine for ADC fifos
+    // -----------------------------------------------
+
+    // ADC1
+    reg adc1_emreq_valid;
+    wire adc1_emreq_ready;
+
+    always @(posedge sys_clk) begin
+        if (sys_rst) begin
+            adc1_emreq_valid <= 1'b0;
+        end else begin
+            if (adc1_fifo_hfull) begin
+                adc1_emreq_valid <= 1'b1;
+            end else begin
+                if (adc1_emreq_ready) begin
+                    adc1_emreq_valid <= 1'b0;
+                end
+            end
+        end
+    end
+
+    // ADC2
+    reg adc2_emreq_valid;
+    wire adc2_emreq_ready;
+
+    always @(posedge sys_clk) begin
+        if (sys_rst) begin
+            adc2_emreq_valid <= 1'b0;
+        end else begin
+            if (adc2_fifo_hfull) begin
+                adc2_emreq_valid <= 1'b1;
+            end else begin
+                if (adc2_emreq_ready) begin
+                    adc2_emreq_valid <= 1'b0;
+                end
+            end
+        end
+    end
+
+    // ------------------------
+    // DAC driver
+    // ------------------------
+
+    wire csr_ftun_vtune_write;
+    wire [15:0] csr_ftun_vtune_val;
+
+    dac8551 #(
+        .CLK_DIV(20)
+    ) dac8551_i (
+        .i_clk(sys_clk),
+        .i_rst(sys_rst),
+        .i_wr(csr_ftun_vtune_write),
+        .i_wr_data({8'b0, csr_ftun_vtune_val}),
+        .o_dac_sclk(p_spi_dac_sclk),
+        .o_dac_sync_n(p_spi_dac_sync_n),
+        .o_dac_mosi(p_spi_dac_mosi)
+    );
 
     // -------------------------------------------
     // FTDI SyncFIFO streams (in sys_clk domain)
@@ -416,8 +548,8 @@ module top (
         .o_tx_data(sys_ft_tx_data),
         .o_tx_valid(sys_ft_tx_valid),
         // TODO: EMREQs
-        .i_emreqs_valid(adcstr1_emreq_valid),
-        .o_emreqs_ready(adcstr1_emreq_ready),
+        .i_emreqs_valid(adc1_emreq_valid),
+        .o_emreqs_ready(adc1_emreq_ready),
         .i_emreqs(pack_mreq(1'b0, 1'b0, MREQ_WSIZE_VAL_4BYTE, 8'hFF, 32'h00000080))
     );
 
@@ -468,212 +600,64 @@ module top (
         .wbs_cyc_o(wbm_reg_cyc)
     );
 
-    // -----------------------------------
-    // Wishbone bus switch
-    // -----------------------------------
+    // --------------------------------------
+    // Control and status registers
+    // --------------------------------------
 
-    // Slave IDs
-    localparam WBS_ID_MEM = 0;
-    localparam WBS_ID_ADCSTR1 = 1;
-    localparam WBS_ID_ADCSTR2 = 2;
-    localparam WBS_ID_DUMMY = 3;    // dummy always the last one, since it handles all unmapped addresses
-    //
-    localparam WBS_NUM = 4;
-
-    // Wishbone signals for each slave, flattened
-    wire [WBS_NUM-1:0] wbs_cyc;
-    wire [WBS_NUM-1:0] wbs_stb;
-    wire [WBS_NUM-1:0] wbs_stall;
-    wire [WBS_NUM-1:0] wbs_ack;
-    wire [WBS_NUM-1:0] wbs_we;
-    wire [4*WBS_NUM-1:0] wbs_sel;
-    wire [WB_ADDR_WIDTH*WBS_NUM-1:0] wbs_addr;
-    wire [32*WBS_NUM-1:0] wbs_wdata;
-    wire [32*WBS_NUM-1:0] wbs_rdata;
-
-    // Multiplexer
-    wb_mux #(
-        .NUM_SLAVES(WBS_NUM),
-        .ADDR_WIDTH(WB_ADDR_WIDTH),
-        .DATA_WIDTH(32)
-    ) wb_mux_i (
-        .clk(sys_clk),
-        .rst(sys_rst),
-        //
-        .wbm_adr_i(wbm_reg_addr),
-        .wbm_dat_i(wbm_reg_wdata),
-        .wbm_dat_o(wbm_reg_rdata),
-        .wbm_we_i(wbm_reg_we),
-        .wbm_sel_i(wbm_reg_sel),
-        .wbm_stb_i(wbm_reg_stb),
-        .wbm_ack_o(wbm_reg_ack),
-        // .wbm_err_o()
-        // .wbm_rty_o()
-        .wbm_cyc_i(wbm_reg_cyc),
-        //
-        .wbs_adr_o(wbs_addr),
-        .wbs_dat_i(wbs_rdata),
-        .wbs_dat_o(wbs_wdata),
-        .wbs_we_o(wbs_we),
-        .wbs_sel_o(wbs_sel),
-        .wbs_stb_o(wbs_stb),
-        .wbs_ack_i(wbs_ack),
-        .wbs_err_i({WBS_NUM{1'b0}}),
-        .wbs_rty_i({WBS_NUM{1'b0}}),
-        .wbs_cyc_o(wbs_cyc),
-        // Address map
-        // NOTE: it is reversed!! In verilog concatenation is MSB->LSB, and bit indexing is LSB->MSB
-        .wbs_addr({
-            8'h00,  // 3 - DUMMY - handle all addresses
-            8'h22,  // 2 - ADCSTR2
-            8'h21,  // 1 - ADCSTR1
-            8'h10   // 0 - MEM
-        }),
-        .wbs_addr_msk({
-            8'h00,  // 3
-            8'hFF,  // 2
-            8'hFF,  // 1
-            8'hF0   // 0
-        })
-    );
-
-    // ---------------------------
-    // Wishbone syncFIFOs for ADC
-    // ---------------------------
-    localparam ADCSTR_SFIFO_ASIZE = 9;
-
-    wire adcstr1_sfifo_full, adcstr2_sfifo_full;
-    wire adcstr1_sfifo_half_full, adcstr2_sfifo_half_full;
-
-    wb_rxfifo #(
-        .FIFO_ADDR_WIDTH(ADCSTR_SFIFO_ASIZE)
-    ) adcstr1_sfifo (
+    lwdo_regs #(
+        .ADDRESS_WIDTH(WB_ADDR_WIDTH+2),
+        .DEFAULT_READ_DATA(32'hDEADBEEF)
+    ) lwdo_regs_i (
+        // SYSCON
         .i_clk(sys_clk),
-        .i_rst(sys_rst),
-        // wb
-        .i_wb_cyc(wbs_cyc[WBS_ID_ADCSTR1]),
-        .i_wb_stb(wbs_stb[WBS_ID_ADCSTR1]),
-        .o_wb_stall(wbs_stall[WBS_ID_ADCSTR1]),
-        .o_wb_ack(wbs_ack[WBS_ID_ADCSTR1]),
-        .i_wb_we(wbs_we[WBS_ID_ADCSTR1]),
-        .o_wb_data(wbs_rdata[32*(WBS_ID_ADCSTR1+1)-1:32*WBS_ID_ADCSTR1]),
-        // rx stream
-        .i_rx_valid(adcstr1_valid),
-        .o_rx_ready(adcstr1_ready),
-        .i_rx_data(adcstr1_data),
-        // fifo status
-        // .o_fifo_count(fifo_count),
-        // .o_fifo_empty(fifo_empty),
-        .o_fifo_full(adcstr1_sfifo_full),
-        .o_fifo_half_full(adcstr1_sfifo_half_full)
-        // .o_fifo_overflow(fifo_overflow),
-        // .o_fifo_underflow(fifo_underflow)
+        .i_rst_n(~sys_rst),
+
+        // WISHBONE
+        .i_wb_cyc(wbm_reg_cyc),
+        .i_wb_stb(wbm_reg_stb),
+            //.o_wb_stall()
+        .i_wb_adr({wbm_reg_addr, 2'b0}),
+        .i_wb_we(wbm_reg_we),
+        .i_wb_dat(wbm_reg_wdata),
+        .i_wb_sel(wbm_reg_sel),
+        .o_wb_ack(wbm_reg_ack),
+        .o_wb_dat(wbm_reg_rdata),
+
+        // REGS: SYS
+        .o_sys_con_sys_rst(sys_rst_req),
+        // REGS: ADCT
+        .o_adct_con_srate1_en(csr_adct_srate1_en),
+        .o_adct_con_srate2_en(csr_adct_srate2_en),
+        .o_adct_con_puls1_en(csr_adct_puls1_en),
+        .o_adct_con_puls2_en(csr_adct_puls2_en),
+        .o_adct_srate1_psc_div_val(csr_adct_srate1_psc_div),
+        .o_adct_srate2_psc_div_val(csr_adct_srate2_psc_div),
+        .o_adct_puls1_psc_div_val(csr_adct_puls1_psc_div),
+        .o_adct_puls2_psc_div_val(csr_adct_puls2_psc_div),
+        .o_adct_puls1_dly_val(csr_adct_puls1_dly),
+        .o_adct_puls2_dly_val(csr_adct_puls2_dly),
+        .o_adct_puls1_pwidth_val(csr_adct_puls1_pwidth),
+        .o_adct_puls2_pwidth_val(csr_adct_puls2_pwidth),
+        // REGS: ADC1
+        .i_adc_fifo1_sts_empty(adc1_fifo_empty),
+        .i_adc_fifo1_sts_full(adc1_fifo_full),
+        .i_adc_fifo1_sts_hfull(adc1_fifo_hfull),
+        .i_adc_fifo1_sts_ovfl(adc1_fifo_ovfl),
+        .i_adc_fifo1_sts_udfl(adc1_fifo_udfl),
+        .i_adc_fifo1_port_data(adc1_fifo_data),
+        .o_adc_fifo1_port_data_read_trigger(adc1_fifo_rd),
+        // REGS: ADC2
+        .i_adc_fifo2_sts_empty(adc2_fifo_empty),
+        .i_adc_fifo2_sts_full(adc2_fifo_full),
+        .i_adc_fifo2_sts_hfull(adc2_fifo_hfull),
+        .i_adc_fifo2_sts_ovfl(adc2_fifo_ovfl),
+        .i_adc_fifo2_sts_udfl(adc2_fifo_udfl),
+        .i_adc_fifo2_port_data(adc2_fifo_data),
+        .o_adc_fifo2_port_data_read_trigger(adc2_fifo_rd),
+        // REGS: FTUN
+        .o_ftun_vtune_set_val(csr_ftun_vtune_val),
+        .o_ftun_vtune_set_val_write_trigger(csr_ftun_vtune_write)
     );
-
-    wb_rxfifo #(
-        .FIFO_ADDR_WIDTH(ADCSTR_SFIFO_ASIZE)
-    ) adcstr2_sfifo (
-        .i_clk(sys_clk),
-        .i_rst(sys_rst),
-        // wb
-        .i_wb_cyc(wbs_cyc[WBS_ID_ADCSTR2]),
-        .i_wb_stb(wbs_stb[WBS_ID_ADCSTR2]),
-        .o_wb_stall(wbs_stall[WBS_ID_ADCSTR2]),
-        .o_wb_ack(wbs_ack[WBS_ID_ADCSTR2]),
-        .i_wb_we(wbs_we[WBS_ID_ADCSTR2]),
-        .o_wb_data(wbs_rdata[32*(WBS_ID_ADCSTR2+1)-1:32*WBS_ID_ADCSTR2]),
-        // rx stream
-        .i_rx_valid(adcstr2_valid),
-        .o_rx_ready(adcstr2_ready),
-        .i_rx_data(adcstr2_data),
-        // fifo status
-        // .o_fifo_count(fifo_count),
-        // .o_fifo_empty(fifo_empty),
-        .o_fifo_full(adcstr2_sfifo_full),
-        .o_fifo_half_full(adcstr2_sfifo_half_full)
-        // .o_fifo_overflow(fifo_overflow),
-        // .o_fifo_underflow(fifo_underflow)
-    );
-
-    // -----------------------------------------------
-    // EMREQ valid/ready state machine for ADC fifos
-    // -----------------------------------------------
-    reg adcstr1_emreq_valid, adcstr2_emreq_valid;
-    wire adcstr1_emreq_ready, adcstr2_emreq_ready;
-
-    always @(posedge sys_clk) begin
-        if (sys_rst) begin
-            adcstr1_emreq_valid <= 1'b0;
-            adcstr2_emreq_valid <= 1'b0;
-        end else begin
-            // adc1
-            if (adcstr1_sfifo_half_full) begin
-                adcstr1_emreq_valid <= 1'b1;
-            end else begin
-                if (adcstr1_emreq_ready) begin
-                    adcstr1_emreq_valid <= 1'b0;
-                end
-            end
-            // adc2
-            if (adcstr2_sfifo_half_full) begin
-                adcstr2_emreq_valid <= 1'b1;
-            end else begin
-                if (adcstr2_emreq_ready) begin
-                    adcstr2_emreq_valid <= 1'b0;
-                end
-            end
-        end
-    end
-
-    // ------------------------
-    // Wishbone dummy slave
-    // ------------------------
-    wb_dummy wb_dummy_i (
-        .i_clk(sys_clk),
-        // wb
-        .i_wb_cyc(wbs_cyc[WBS_ID_DUMMY]),
-        .i_wb_stb(wbs_stb[WBS_ID_DUMMY]),
-        .o_wb_stall(wbs_stall[WBS_ID_DUMMY]),
-        .o_wb_ack(wbs_ack[WBS_ID_DUMMY]),
-        .o_wb_data(wbs_rdata[32*(WBS_ID_DUMMY+1)-1:32*WBS_ID_DUMMY])
-    );
-
-    // ------------------------
-    // Wishbone RAM
-    // ------------------------
-    wb_mem #(
-        .WB_ADDR_WIDTH(4)
-    ) wb_mem_i (
-        .i_clk(sys_clk),
-        .i_rst(sys_rst),
-        // wb
-        .i_wb_cyc(wbs_cyc[WBS_ID_MEM]),
-        .i_wb_stb(wbs_stb[WBS_ID_MEM]),
-        .o_wb_stall(wbs_stall[WBS_ID_MEM]),
-        .o_wb_ack(wbs_ack[WBS_ID_MEM]),
-        .i_wb_we(wbs_we[WBS_ID_MEM]),
-        .i_wb_addr(wbs_addr[WB_ADDR_WIDTH*WBS_ID_MEM+4-1:WB_ADDR_WIDTH*WBS_ID_MEM]),
-        .i_wb_data(wbs_wdata[32*(WBS_ID_MEM+1)-1:32*WBS_ID_MEM]),
-        .i_wb_sel(wbs_sel[4*(WBS_ID_MEM+1)-1:4*WBS_ID_MEM]),
-        .o_wb_data(wbs_rdata[32*(WBS_ID_MEM+1)-1:32*WBS_ID_MEM])
-    );
-
-    // ------------------------
-    // DAC driver
-    // ------------------------
-
-    dac8551 #(
-        .CLK_DIV(10)
-    ) dac8551_i (
-        .i_clk(sys_clk),
-        .i_rst(sys_rst),
-        .i_wr(1'b1),
-        .i_wr_data(24'h007F22),
-        .o_dac_sclk(p_spi_dac_sclk),
-        .o_dac_sync_n(p_spi_dac_sync_n),
-        .o_dac_mosi(p_spi_dac_mosi)
-    );
-
 
     // ===============================================================================================================
     // =========================                                                             =========================
@@ -776,7 +760,8 @@ module top (
     // =========================                                                             =========================
     // ===============================================================================================================
 
-    localparam FT_AFIFO_ASIZE = 9;  // 9 bit address -> 512 bytes, 1x ICE40 4K BRAM block
+    // FIFO size: 256 bytes. That's half of ICE40 4K BRAM, but it improves timing compared to 512.
+    localparam FT_AFIFO_ASIZE = 8;
 
     // Two asynchronous FIFOs: one for Rx stream, one for Tx stream
     // To fit nicely on iCE40, each FIFO uses one whole 4K BRAM block
@@ -845,7 +830,7 @@ module top (
     // CLK OUT
     // ------------------------
     assign p_clk_out_sel = 1'b1;
-    assign p_clk_out = ~adcstr1_sfifo_full;
+    assign p_clk_out = ~adc1_fifo_full;
 
     // ------------------------
     // LEDs
@@ -861,10 +846,10 @@ module top (
     // assign p_led_in3_g = 0;
     // assign p_led_in4_r = ~p_ft_fifo_txe_n;
     // assign p_led_in4_g = 0;
-    assign p_led_in3_r = adcstr1_emreq_valid;
-    assign p_led_in3_g = adc_puls1_w;
-    assign p_led_in4_r = adcstr1_emreq_ready;
-    assign p_led_in4_g = adc_puls2_w;
+    assign p_led_in3_r = adc1_emreq_valid;
+    assign p_led_in3_g = adct_puls1_w;
+    assign p_led_in4_r = adc1_emreq_ready;
+    assign p_led_in4_g = adct_puls2_w;
 
 
 endmodule
