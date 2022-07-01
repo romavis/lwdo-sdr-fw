@@ -576,7 +576,7 @@ module top (
         // TODO: EMREQs
         .i_emreqs_valid(adc1_emreq_valid),
         .o_emreqs_ready(adc1_emreq_ready),
-        .i_emreqs(pack_mreq(1'b0, 1'b0, MREQ_WSIZE_VAL_4BYTE, 8'hFF, 32'h00000080))
+        .i_emreqs(pack_mreq(8'h01, 1'b0, 1'b0, MREQ_WFMT_32S0, 8'hFF, 32'h00000080))
     );
 
     // --------------------------------------

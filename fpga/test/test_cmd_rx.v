@@ -30,41 +30,41 @@ module stream_gen (
         test_vector[i++] = 8'hFA;
         test_vector[i++] = 8'h77;
         // CRC error
-        test_vector[i++] = 8'hA3;
-        test_vector[i++] = 8'h00;
-        test_vector[i++] = 8'h00;
-        test_vector[i++] = 8'h00;
-        test_vector[i++] = 8'h00;
-        test_vector[i++] = 8'h00;
-        test_vector[i++] = 8'h00;
-        test_vector[i++] = 8'h00;
-        // Write: addr=0x12345678, asize=1byte, incr=1, bytes=5
-        test_vector[i++] = 8'hA3;
-        test_vector[i++] = 8'b001001;
-        test_vector[i++] = 8'h05;
-        test_vector[i++] = 8'h78;
-        test_vector[i++] = 8'h56;
-        test_vector[i++] = 8'h34;
-        test_vector[i++] = 8'h12;
-        test_vector[i++] = 8'hCE; //crc
-        // Read: addr=0x87654321, asize=2byte, incr=1, bytes=5
-        test_vector[i++] = 8'hA3;
-        test_vector[i++] = 8'b011000;
-        test_vector[i++] = 8'h05;
-        test_vector[i++] = 8'h21;
-        test_vector[i++] = 8'h43;
-        test_vector[i++] = 8'h65;
-        test_vector[i++] = 8'h87;
-        test_vector[i++] = 8'hBA; //crc
-        // Read: addr=0x87654321, asize=2byte, incr=1, bytes=5
-        test_vector[i++] = 8'hA3;
-        test_vector[i++] = 8'b011000;
-        test_vector[i++] = 8'h05;
-        test_vector[i++] = 8'h21;
-        test_vector[i++] = 8'h43;
-        test_vector[i++] = 8'h65;
-        test_vector[i++] = 8'h87;
-        test_vector[i++] = 8'hBA; //crc
+        test_vector[i++] = 8'hA3;           // START
+        test_vector[i++] = 8'b0000_0000;    // DSC
+        test_vector[i++] = 8'h00;           // TAG
+        test_vector[i++] = 8'h00;           // WCNT
+        test_vector[i++] = 8'h00;           // A0
+        test_vector[i++] = 8'h00;           // A1
+        test_vector[i++] = 8'h00;           // A2
+        test_vector[i++] = 8'h00;           // CRC
+        // Packet
+        test_vector[i++] = 8'hA3;           // START
+        test_vector[i++] = 8'b0001_1001;    // DSC
+        test_vector[i++] = 8'hEA;           // TAG
+        test_vector[i++] = 8'hCD;           // WCNT
+        test_vector[i++] = 8'h56;           // A0
+        test_vector[i++] = 8'h34;           // A1
+        test_vector[i++] = 8'h12;           // A2
+        test_vector[i++] = 8'h8D;           // CRC
+        // Packet
+        test_vector[i++] = 8'hA3;           // START
+        test_vector[i++] = 8'b0110_1000;    // DSC
+        test_vector[i++] = 8'h05;           // TAG
+        test_vector[i++] = 8'h11;           // WCNT
+        test_vector[i++] = 8'hCC;           // A0
+        test_vector[i++] = 8'hBB;           // A1
+        test_vector[i++] = 8'hAA;           // A2
+        test_vector[i++] = 8'h23;           // CRC
+        // Packet
+        test_vector[i++] = 8'hA3;           // START
+        test_vector[i++] = 8'b0100_0001;    // DSC
+        test_vector[i++] = 8'h00;           // TAG
+        test_vector[i++] = 8'hFF;           // WCNT
+        test_vector[i++] = 8'h33;           // A0
+        test_vector[i++] = 8'h22;           // A1
+        test_vector[i++] = 8'h11;           // A2
+        test_vector[i++] = 8'h6C;           // CRC
         //
         for (i = i; i < 1024; i = i + 1) begin
             test_vector[i] = 8'b0;
@@ -89,7 +89,7 @@ module test_cmd_rx;
     reg clk = 0;
     reg rst = 0;
     reg en = 0;
-  
+
     wire [7:0] rx_data;
     wire rx_valid;
     wire rx_ready;
@@ -114,7 +114,7 @@ module test_cmd_rx;
 
         $finish;
     end
-  
+
     stream_gen gen (
         .i_clk(clk),
         .i_enable(en),
@@ -129,17 +129,18 @@ module test_cmd_rx;
     reg mreq_ready = 1;
     wire [MREQ_NBIT-1:0] mreq;
 
+    reg [7:0] mreq_tag;
     reg mreq_wr;
-    reg [1:0] mreq_wsize;
     reg mreq_aincr;
-    reg [7:0] mreq_wcount;
-    reg [31:0] mreq_addr;
+    reg [2:0] mreq_wfmt;
+    reg [7:0] mreq_wcnt;
+    reg [23:0] mreq_addr;
 
 
     always @(*) begin
         unpack_mreq (
             mreq,
-            mreq_wr, mreq_aincr, mreq_wsize, mreq_wcount, mreq_addr
+            mreq_tag, mreq_wr, mreq_aincr, mreq_wfmt, mreq_wcnt, mreq_addr
         );
     end
 

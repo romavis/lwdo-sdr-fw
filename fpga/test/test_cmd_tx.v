@@ -11,11 +11,14 @@ module test_cmd_tx;
 
     reg mreq_valid = 0;
     wire mreq_ready;
+    //
+    reg [7:0] mreq_tag = 0;
     reg mreq_wr = 0;
-    reg [1:0] mreq_wsize = 0;
     reg mreq_aincr = 0;
-    reg [7:0] mreq_wcount = 0;
-    reg [31:0] mreq_addr = 0;
+    reg [2:0] mreq_wfmt = 0;
+    reg [7:0] mreq_wcnt = 0;
+    reg [23:0] mreq_addr = 0;
+    //
     wire [7:0] tx_data;
     wire tx_valid;
     reg tx_ready = 1;
@@ -30,10 +33,16 @@ module test_cmd_tx;
         //
         .i_mreq_valid(mreq_valid),
         .o_mreq_ready(mreq_ready),
-        .i_mreq(pack_mreq(mreq_wr, mreq_aincr, mreq_wsize, mreq_wcount, mreq_addr))
+        .i_mreq(pack_mreq(mreq_tag, mreq_wr, mreq_aincr, mreq_wfmt, mreq_wcnt, mreq_addr))
     );
 
     always #5 clk = ~clk;
+
+    always @(posedge clk) begin
+        if (tx_valid && tx_ready) begin
+            $display("Tx: %02x", tx_data);
+        end
+    end
 
     initial begin
         $dumpfile("test_cmd_tx.vcd");
@@ -44,24 +53,25 @@ module test_cmd_tx;
         repeat (1) @(posedge clk);
         rst <= 0;
         repeat (5) @(posedge clk);
-        
-        mreq_wsize <= MREQ_WSIZE_VAL_2BYTE;
+
+        mreq_tag <= 8'hAB;
+        mreq_wr <= 1;
         mreq_aincr <= 1;
-        mreq_wcount <= 8'd5;
-        mreq_addr <= 32'h12345678;
+        mreq_wfmt <= MREQ_WFMT_16S1;
+        mreq_wcnt <= 8'hEC;
+        mreq_addr <= 23'h123456;
 
         // STROBE
         mreq_valid <= 1;
         @(posedge clk); wait(mreq_ready) @(posedge clk);
         mreq_valid <= 0;
-        
-        repeat (10) @(posedge clk);
 
-        mreq_wr <= 1;
-        mreq_wsize <= MREQ_WSIZE_VAL_2BYTE;
+        mreq_tag <= 8'h33;
+        mreq_wr <= 0;
         mreq_aincr <= 1;
-        mreq_wcount <= 8'd5;
-        mreq_addr <= 32'h43211234;
+        mreq_wfmt <= MREQ_WFMT_32S0;
+        mreq_wcnt <= 8'h76;
+        mreq_addr <= 23'hAABBCC;
 
         // STROBE
         mreq_valid <= 1;
@@ -69,9 +79,9 @@ module test_cmd_tx;
         tx_ready <= 0;
         repeat (10) @(posedge clk);
         tx_ready <= 1;
+
         @(posedge clk); wait(mreq_ready) @(posedge clk);
         mreq_valid <= 0;
-        @(posedge clk);
 
         tx_ready <= 0;
         // Strobe

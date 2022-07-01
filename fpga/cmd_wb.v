@@ -1,5 +1,5 @@
 module cmd_wb #(
-    parameter WB_ADDR_WIDTH = 30
+    parameter WB_ADDR_WIDTH = 24
 )
 (
     // Clock (posedge) and sync reset
@@ -28,7 +28,7 @@ module cmd_wb #(
     output [7:0] o_tx_data,
     input i_tx_ready
 );
-    
+
     `include "cmd_defines.vh"
     `include "mreq_defines.vh"
 
@@ -43,14 +43,17 @@ module cmd_wb #(
     //
     // Decode MREQ
     //
+    reg [7:0] mreq_tag;
     reg mreq_wr;
     reg mreq_aincr;
-    reg [1:0] mreq_wsize;
-    reg [7:0] mreq_wcount;
-    reg [31:0] mreq_addr;
+    reg [2:0] mreq_wfmt;
+    reg [7:0] mreq_wcnt;
+    reg [23:0] mreq_addr;
 
     always @(*) begin
-        unpack_mreq(i_mreq, mreq_wr, mreq_aincr, mreq_wsize, mreq_wcount, mreq_addr);
+        unpack_mreq(
+            i_mreq,
+            mreq_tag, mreq_wr, mreq_aincr, mreq_wfmt, mreq_wcnt, mreq_addr);
     end
 
     //
@@ -95,7 +98,7 @@ module cmd_wb #(
         state_next = state;
 
         case (state)
-        
+
         // Idle: wait for incoming MREQ and process it when it comes
         ST_IDLE: begin
             if (i_mreq_valid) begin
@@ -138,7 +141,7 @@ module cmd_wb #(
                 end
             end
         end
-        
+
         endcase
     end
 
@@ -154,65 +157,91 @@ module cmd_wb #(
     assign o_wb_stb = (state == ST_WB_REQ_WAIT) ? 1'b1 : 1'b0;
     assign o_wb_we = r_mreq_wr;
     assign o_wb_addr = wb_addr;
-    assign o_wb_data = {wbio_data[3], wbio_data[2], wbio_data[1], wbio_data[0]};
-    assign o_wb_sel = ~wbio_byte_sel_n;
+    assign o_wb_data = wbio_data;
+    assign o_wb_sel = wbio_byte_sel;
     assign o_rx_ready = (state == ST_CONSTRUCT_WORD) ? 1'b1 : 1'b0;
     assign o_tx_valid = (state == ST_DECONSTRUCT_WORD) ? 1'b1 : 1'b0;
-    assign o_tx_data = wbio_data[wbio_byte_ctr];
+    assign o_tx_data = wbio_data[8*wbio_byte_ctr+:8];
 
     //
     // WB data, byte selection, construction and deconstruction
     //
     reg [1:0] wbio_byte_ctr;
-    reg [3:0] wbio_byte_sel_n;
-    reg [7:0] wbio_data [0:3];
+    reg [1:0] wbio_byte_max;
+    reg [3:0] wbio_byte_sel;
+    reg [31:0] wbio_data;
 
-    reg wbio_last_byte;
-    always @(*) begin
-        case (r_mreq_wsize)
-        MREQ_WSIZE_VAL_4BYTE: wbio_last_byte = (wbio_byte_ctr == 2'd3) ? 1'b1 : 1'b0;
-        MREQ_WSIZE_VAL_2BYTE: wbio_last_byte = (wbio_byte_ctr == 2'd1) ? 1'b1 : 1'b0;
-        default: wbio_last_byte = 1'b1;
+    function [1:0] wfmt_to_byte_ofs (
+        input [2:0] wfmt
+    );
+        wfmt_to_byte_ofs = 2'd0;
+        case (wfmt)
+        MREQ_WFMT_8S0,
+        MREQ_WFMT_16S0,
+        MREQ_WFMT_32S0:
+            wfmt_to_byte_ofs = 2'd0;
+        MREQ_WFMT_8S1:
+            wfmt_to_byte_ofs = 2'd1;
+        MREQ_WFMT_8S2,
+        MREQ_WFMT_16S1:
+            wfmt_to_byte_ofs = 2'd2;
+        MREQ_WFMT_8S3:
+            wfmt_to_byte_ofs = 2'd3;
         endcase
-    end
+    endfunction
+
+    function [1:0] wfmt_to_byte_max (
+        input [2:0] wfmt
+    );
+        wfmt_to_byte_max = 2'd0;
+        case (wfmt)
+        MREQ_WFMT_8S0:
+            wfmt_to_byte_max = 2'd0;
+        MREQ_WFMT_8S1,
+        MREQ_WFMT_16S0:
+            wfmt_to_byte_max = 2'd1;
+        MREQ_WFMT_8S2:
+            wfmt_to_byte_max = 2'd2;
+        MREQ_WFMT_8S3,
+        MREQ_WFMT_16S1,
+        MREQ_WFMT_32S0:
+            wfmt_to_byte_max = 2'd3;
+        endcase
+    endfunction
+
+    wire wbio_last_byte = (wbio_byte_ctr == wbio_byte_max);
 
     always @(posedge clk) begin
         // Initialize counters and data register
         if (rst) begin
 
             wbio_byte_ctr <= 2'd0;
-            wbio_byte_sel_n <= 4'b1111;
-            wbio_data[0] <= 8'd0;
-            wbio_data[1] <= 8'd0;
-            wbio_data[2] <= 8'd0;
-            wbio_data[3] <= 8'd0;
+            wbio_byte_max <= 2'd0;
+            wbio_byte_sel <= 4'b0;
+            wbio_data <= 32'd0;
 
         end else begin
 
             // Init word construction: reset counters, clear data register
             if (state_change && (state_next == ST_CONSTRUCT_WORD)) begin
-                wbio_byte_ctr <= 2'd0;
-                wbio_byte_sel_n <= 4'b1111;
+                wbio_byte_ctr <= wfmt_to_byte_ofs(state == ST_IDLE ? mreq_wfmt : r_mreq_wfmt);
+                wbio_byte_max <= wfmt_to_byte_max(state == ST_IDLE ? mreq_wfmt : r_mreq_wfmt);
+                wbio_byte_sel <= 4'b0;
                 // (WB write) zero-fill data word
-                wbio_data[0] <= 8'd0;
-                wbio_data[1] <= 8'd0;
-                wbio_data[2] <= 8'd0;
-                wbio_data[3] <= 8'd0;
+                wbio_data <= 32'd0;
             end
             // Init word deconstruction: reset counters, capture data word into data register
             if (state_change && (state_next == ST_DECONSTRUCT_WORD)) begin
-                wbio_byte_ctr <= 2'd0;
+                wbio_byte_ctr <= wfmt_to_byte_ofs(state == ST_IDLE ? mreq_wfmt : r_mreq_wfmt);
+                wbio_byte_max <= wfmt_to_byte_max(state == ST_IDLE ? mreq_wfmt : r_mreq_wfmt);
                 // (WB read) capture data bus
-                wbio_data[0] <= i_wb_data[7:0];
-                wbio_data[1] <= i_wb_data[15:8];
-                wbio_data[2] <= i_wb_data[23:16];
-                wbio_data[3] <= i_wb_data[31:24];
+                wbio_data <= i_wb_data;
             end
             // Word construction
             if (state == ST_CONSTRUCT_WORD && rx_ack) begin
                 // Capture byte from Rx stream
-                wbio_data[wbio_byte_ctr] <= i_rx_data;
-                wbio_byte_sel_n <= wbio_byte_sel_n << 1;
+                wbio_data[8*wbio_byte_ctr+:8] <= i_rx_data;
+                wbio_byte_sel[wbio_byte_ctr] <= 1'b1;
                 wbio_byte_ctr <= wbio_byte_ctr + 2'd1;
             end
             // Word deconstruction
@@ -230,11 +259,11 @@ module cmd_wb #(
 
     always @(posedge clk) begin
         if (rst) begin
-            wb_addr <= 30'd0;
+            wb_addr <= {WB_ADDR_WIDTH{1'b0}};
         end else begin
             // Load address from MREQ
-            if (state == ST_IDLE && state_next != ST_IDLE) begin
-                wb_addr <= mreq_addr[WB_ADDR_WIDTH+1:2];
+            if (state == ST_IDLE && state_change) begin
+                wb_addr <= mreq_addr[WB_ADDR_WIDTH-1:0];
             end
             // Increment address immediately after WB request has been sent
             if (r_mreq_aincr && wb_req_ack) begin
@@ -256,10 +285,11 @@ module cmd_wb #(
         end else begin
             // Capture word count when idling
             if (state == ST_IDLE) begin
-                words_remaining <= mreq_wcount;
+                words_remaining <= mreq_wcnt;
             end
-            // Decrement word count when WB req is accepted and it's not the last word
-            if (wb_req_ack && !last_word) begin
+            // Decrement word count when starting processing a new word
+            if ((state == ST_DECONSTRUCT_WORD && state_next == ST_WB_REQ_WAIT) ||
+                (state == ST_WB_WAIT_ACK && state_next == ST_CONSTRUCT_WORD)) begin
                 words_remaining <= words_remaining - 8'd1;
             end
         end
@@ -270,18 +300,18 @@ module cmd_wb #(
     //
     reg r_mreq_wr;
     reg r_mreq_aincr;
-    reg [1:0] r_mreq_wsize;
+    reg [2:0] r_mreq_wfmt;
 
     always @(posedge clk) begin
         if (rst) begin
             r_mreq_wr <= 1'b0;
             r_mreq_aincr <= 1'b0;
-            r_mreq_wsize <= 2'b0;
+            r_mreq_wfmt <= 3'b0;
         end else begin
             if (state == ST_IDLE) begin
                 r_mreq_wr <= mreq_wr;
                 r_mreq_aincr <= mreq_aincr;
-                r_mreq_wsize <= mreq_wsize;
+                r_mreq_wfmt <= mreq_wfmt;
             end
         end
     end

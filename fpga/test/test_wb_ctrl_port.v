@@ -29,75 +29,41 @@ module stream_gen (
         test_vector[i++] = 8'hFA;
         test_vector[i++] = 8'h77;
         // CRC error
-        test_vector[i++] = 8'hA3;
-        test_vector[i++] = 8'h00;
-        test_vector[i++] = 8'h00;
-        test_vector[i++] = 8'h00;
-        test_vector[i++] = 8'h00;
-        test_vector[i++] = 8'h00;
-        test_vector[i++] = 8'h00;
-        test_vector[i++] = 8'h00;
-        // Write: addr=0x12345678, asize=1byte, incr=1, bytes=5
-        test_vector[i++] = 8'hA3;
-        test_vector[i++] = 8'b001001;
-        test_vector[i++] = 8'h05;
-        test_vector[i++] = 8'h78;
-        test_vector[i++] = 8'h56;
-        test_vector[i++] = 8'h34;
-        test_vector[i++] = 8'h12;
-        test_vector[i++] = 8'hCE; //crc
-        // 5 bytes
-        test_vector[i++] = 8'h11;
-        test_vector[i++] = 8'h22;
-        test_vector[i++] = 8'h33;
-        test_vector[i++] = 8'h44;
-        test_vector[i++] = 8'h55;
-        // Read: addr=0x87654321, asize=2byte, incr=1, bytes=5
-        test_vector[i++] = 8'hA3;
-        test_vector[i++] = 8'b101000;
-        test_vector[i++] = 8'h05;
-        test_vector[i++] = 8'h78;
-        test_vector[i++] = 8'h56;
-        test_vector[i++] = 8'h34;
-        test_vector[i++] = 8'h12;
-        test_vector[i++] = 8'hDC; //crc
-        // some nullekes
-        test_vector[i++] = 8'h00;
-        test_vector[i++] = 8'h00;
-        test_vector[i++] = 8'h00;
-        test_vector[i++] = 8'h00;
-        test_vector[i++] = 8'h00;
-        test_vector[i++] = 8'h00;
-        test_vector[i++] = 8'h00;
-        test_vector[i++] = 8'h00;
-        test_vector[i++] = 8'h00;
-        // stall it
-        test_vector[i++] = 8'hA3;
-        test_vector[i++] = 8'b000010;
-        test_vector[i++] = 8'h00;
-        test_vector[i++] = 8'h00;
-        test_vector[i++] = 8'h00;
-        test_vector[i++] = 8'h00;
-        test_vector[i++] = 8'h00;
-        test_vector[i++] = 8'h1F; //crc
-        // Read: addr=0x87654321, asize=2byte, incr=1, bytes=5
-        test_vector[i++] = 8'hA3;
-        test_vector[i++] = 8'b011000;
-        test_vector[i++] = 8'h05;
-        test_vector[i++] = 8'h21;
-        test_vector[i++] = 8'h43;
-        test_vector[i++] = 8'h65;
-        test_vector[i++] = 8'h87;
-        test_vector[i++] = 8'hBA; //crc
-        // stall it
-        test_vector[i++] = 8'hA3;
-        test_vector[i++] = 8'b000010;
-        test_vector[i++] = 8'h00;
-        test_vector[i++] = 8'h00;
-        test_vector[i++] = 8'h00;
-        test_vector[i++] = 8'h00;
-        test_vector[i++] = 8'h00;
-        test_vector[i++] = 8'h1F; //crc
+        test_vector[i++] = 8'hA3;           // START
+        test_vector[i++] = 8'b0000_0000;    // DSC
+        test_vector[i++] = 8'h00;           // TAG
+        test_vector[i++] = 8'h00;           // WCNT
+        test_vector[i++] = 8'h00;           // A0
+        test_vector[i++] = 8'h00;           // A1
+        test_vector[i++] = 8'h00;           // A2
+        test_vector[i++] = 8'h00;           // CRC
+        // Packet
+        test_vector[i++] = 8'hA3;           // START
+        test_vector[i++] = 8'b0001_1001;    // DSC
+        test_vector[i++] = 8'hEA;           // TAG
+        test_vector[i++] = 8'hCD;           // WCNT
+        test_vector[i++] = 8'h56;           // A0
+        test_vector[i++] = 8'h34;           // A1
+        test_vector[i++] = 8'h12;           // A2
+        test_vector[i++] = 8'h8D;           // CRC
+        // Packet
+        test_vector[i++] = 8'hA3;           // START
+        test_vector[i++] = 8'b0110_1000;    // DSC
+        test_vector[i++] = 8'h05;           // TAG
+        test_vector[i++] = 8'h11;           // WCNT
+        test_vector[i++] = 8'hCC;           // A0
+        test_vector[i++] = 8'hBB;           // A1
+        test_vector[i++] = 8'hAA;           // A2
+        test_vector[i++] = 8'h23;           // CRC
+        // Packet
+        test_vector[i++] = 8'hA3;           // START
+        test_vector[i++] = 8'b0100_0001;    // DSC
+        test_vector[i++] = 8'h00;           // TAG
+        test_vector[i++] = 8'hFF;           // WCNT
+        test_vector[i++] = 8'h33;           // A0
+        test_vector[i++] = 8'h22;           // A1
+        test_vector[i++] = 8'h11;           // A2
+        test_vector[i++] = 8'h6C;           // CRC
 
         for (i = i; i < 1024; i = i + 1) begin
             test_vector[i] = 8'b0;
@@ -117,8 +83,8 @@ module stream_gen (
 endmodule
 
 module test_cmd_wb;
-    
-    localparam WB_ADDR_WIDTH = 6;
+
+    localparam WB_ADDR_WIDTH = 8;
     localparam EMREQ_NUM = 2;
 
     `include "cmd_defines.vh"
@@ -180,8 +146,8 @@ module test_cmd_wb;
         // EMREQs
         .i_emreqs_valid({EMREQ_NUM{1'b1}}),
         .i_emreqs({
-            pack_mreq(1'b0, 1'b0, MREQ_WSIZE_VAL_4BYTE, 2, 32'hFEEDCEEF),
-            pack_mreq(1'b0, 1'b0, MREQ_WSIZE_VAL_2BYTE, 3, 32'hDEADBEEF)
+            pack_mreq(8'hEE, 1'b0, 1'b1, MREQ_WFMT_32S0, 2, 24'hAABBCC),
+            pack_mreq(8'hAA, 1'b0, 1'b0, MREQ_WFMT_16S1, 3, 24'h112233)
             })
     );
 
@@ -248,7 +214,7 @@ module test_cmd_wb;
         $dumpfile("test_wb_ctrl_port.vcd");
         $dumpvars(0);
 
-        
+
         repeat (5) @(posedge clk);
         rst <= 1;
         repeat (5) @(posedge clk);

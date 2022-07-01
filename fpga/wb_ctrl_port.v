@@ -1,5 +1,5 @@
 module wb_ctrl_port #(
-    parameter WB_ADDR_WIDTH = 30,
+    parameter WB_ADDR_WIDTH = 24,
     parameter NUM_EMREQS = 1
 )
 (
@@ -161,7 +161,7 @@ module wb_ctrl_port #(
     assign arb_mreqs = {crx_mreq, i_emreqs};
     assign o_emreqs_ready = arb_mreqs_ready[NUM_EMREQS-1:0];
     assign crx_mreq_ready = arb_mreqs_ready[NUM_EMREQS];
-    
+
     // Rx stream to CRX / CWB switch
     wire rx_conn_cwb;
     assign rx_conn_cwb = crx_mreq_valid;
@@ -178,7 +178,7 @@ module wb_ctrl_port #(
     wire exec1_mreq_ready;
     wire exec2_mreq_valid;
     wire exec2_mreq_ready;
-    
+
     mreq_seq2 mreq_seq2_i(
         .i_clk(clk),
         .i_rst(rst),
