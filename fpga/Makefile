@@ -19,9 +19,11 @@ PIN_DEF = $(SRC_DIR)/top.pcf
 DEVICE = hx4k
 PACKAGE = tq144
 
-NEXTPNR_EXTRA =
+NEXTPNR_FLAGS = \
+		--randomize-seed
+
 ifeq ($(PNRGUI), 1)
-	NEXTPNR_EXTRA += --gui
+	NEXTPNR_FLAGS += --gui
 endif
 
 all: $(OUT_DIR)/$(PROJ).bin
@@ -153,14 +155,20 @@ $(OUT_TEST_DIR)/test_%.vcd: $(OUT_TEST_DIR)/test_%
 
 # Synthesis
 $(OUT_DIR)/top.json: $(V_MODULES)
-	(ulimit -s 524288; yosys \
+	yosys \
 		-f 'verilog $(foreach path,$(V_INCLUDE_PATHS),-I $(path))' \
 		-p 'synth_ice40 -top $(PROJ) -json $@' \
-		$^)
+		$^
 
 # Place-and-route
 $(OUT_DIR)/%.asc: $(OUT_DIR)/%.json $(PIN_DEF)
-	nextpnr-ice40 --randomize-seed --$(DEVICE) --package $(PACKAGE) --json $< --pcf $(PIN_DEF) --asc $@ $(NEXTPNR_EXTRA)
+	nextpnr-ice40 \
+		--$(DEVICE) \
+		--package $(PACKAGE) \
+		--json $< \
+		--pcf $(PIN_DEF) \
+		--asc $@ \
+		$(NEXTPNR_FLAGS)
 
 # Bitstream generation
 $(OUT_DIR)/%.bin: $(OUT_DIR)/%.asc
