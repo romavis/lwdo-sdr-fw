@@ -136,6 +136,23 @@ register_blocks:
       comment: "ADC control and data access"
 
       registers:
+      - name: con
+        comment: "ADC control"
+
+        bit_fields:
+        - name: adc1_en
+          comment: "Enable ADC1"
+          bit_assignment: { width: 1 }
+          type: rw
+          initial_value: 0
+
+        - name: adc2_en
+          comment: "Enable ADC2"
+          bit_assignment: { width: 1 }
+          type: rw
+          initial_value: 0
+
+
       - name: fifo1_sts
         comment: "ADC1 FIFO status"
 

@@ -250,8 +250,10 @@ module top (
     //     ADC - Analog-to-digital converters
     // --------------------------------------------------
 
-    wire adc1_start = adct_srate1;
-    wire adc2_start = adct_srate2;
+    wire csr_adc_adc1_en, csr_adc_adc2_en;
+
+    wire adc1_start = adct_srate1 & csr_adc_adc1_en;
+    wire adc2_start = adct_srate2 & csr_adc_adc2_en;
     wire adc1_rdy;
     wire adc2_rdy;
     wire [13:0] adc1_data_a;
@@ -576,7 +578,7 @@ module top (
         // TODO: EMREQs
         .i_emreqs_valid(adc1_emreq_valid),
         .o_emreqs_ready(adc1_emreq_ready),
-        .i_emreqs(pack_mreq(8'h01, 1'b0, 1'b0, MREQ_WFMT_32S0, 8'hFF, 32'h00000080))
+        .i_emreqs(pack_mreq(8'h01, 1'b0, 1'b0, MREQ_WFMT_32S0, 8'hFF, 24'h000080))
     );
 
     // --------------------------------------
