@@ -2,4 +2,7 @@
 venv/
 
 # VSCode files
-.vscode/ 
+.vscode/
+
+# CMake build
+/build
