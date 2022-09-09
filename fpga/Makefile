@@ -49,7 +49,8 @@ V_MODULES := \
 	$(SRC_DIR)/wb_mem_dly.v \
 	$(SRC_DIR)/wb_rxfifo.v \
 	$(SRC_DIR)/wb_dummy.v \
-	$(SRC_DIR)/wb_mux.v
+	$(SRC_DIR)/wb_mux.v \
+	$(SRC_DIR)/cpstr_esc.v
 
 
 V_INCLUDE_PATHS := \
@@ -117,7 +118,8 @@ TESTS := \
 	test_wb_rxfifo \
 	test_dac8551 \
 	test_fastcounter \
-	test_lwdo_regs
+	test_lwdo_regs \
+	test_cpstr_esc
 
 # ----------------------------------------------------------------------------
 # Rules
