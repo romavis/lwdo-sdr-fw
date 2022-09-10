@@ -72,7 +72,7 @@ module test_cpstr_man_tx;
         .o_valid(dst_valid),
         .i_ready(dst_ready),
         //
-        .i_emit_stridx(emit_stridx)
+        .i_send_stridx(send_stridx)
     );
 
     reg clk = 0;
@@ -88,7 +88,7 @@ module test_cpstr_man_tx;
     wire dst_valid;
     reg dst_ready = 0;
 
-    reg emit_stridx = 0;
+    reg send_stridx = 0;
 
     always #5 clk = ~clk;
 
@@ -158,9 +158,9 @@ module test_cpstr_man_tx;
         en[1] <= 1;
         repeat (10) @(posedge clk);
         // send strind in the middle of the stream
-        emit_stridx <= 1'b1;
+        send_stridx <= 1'b1;
         @(posedge clk);
-        emit_stridx <= 1'b0;
+        send_stridx <= 1'b0;
         repeat (10) @(posedge clk);
         // activate 2 for one byte
         en[2] <= 1;

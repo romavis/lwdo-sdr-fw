@@ -14,7 +14,7 @@ module cpstr_man_tx #(
     output o_valid,
     input i_ready,
     // request to send stream index
-    input i_emit_stridx
+    input i_send_stridx
 );
 
     integer ii;
@@ -22,6 +22,10 @@ module cpstr_man_tx #(
     wire clk, rst;
     assign clk = i_clk;
     assign rst = i_rst;
+
+    // burst termination signal
+    wire terminate_burst;
+    assign terminate_burst = !burst_rem && mux_valid && mux_ready;
 
     // arbiter module (from verilog-wishbone)
     wire [NUM_STREAMS-1:0] req_others;
@@ -33,7 +37,7 @@ module cpstr_man_tx #(
     assign req_others = i_valid & ~grant;
     // normally request follows `i_valid`, but if burst counter signals end
     // of the burst, it switches to `req_others` to make arbiter switch
-    assign req = burst_rem ? i_valid : req_others;
+    assign req = terminate_burst ? req_others : i_valid;
 
     /*
      * Some notes:
@@ -82,7 +86,7 @@ module cpstr_man_tx #(
     reg [$clog2(MAX_BURST)-1:0] burst_rem;
 
     always @(posedge clk or posedge rst) begin
-        if (rst || !req_others || !burst_rem)
+        if (rst || !req_others || terminate_burst)
             // initialize counter to MAX_BURST on reset or when there are no
             // competing streams (thus no burst limitation if only one stream
             // wants to transmit data)
@@ -92,36 +96,36 @@ module cpstr_man_tx #(
             burst_rem <= burst_rem - 1'd1;
     end
 
-    // Stream idx confirmation machine
-    // When arbiter selects a new stream, we use cpstr_esc's 'emit' mechanism
+    // Stream idx confirmation state machine
+    // When arbiter selects a new stream, we use cpstr_esc's 'esc' mechanism
     // to send {ESC_CHAR, grant_idx} to the host. While that pair of bytes is
     // in process of being sent, incoming streams are blocked.
     // This machine reacts to any change in grant_idx on arbiter's output.
     wire [7:0] stridx_grant;    // index selected by arbiter
     reg [7:0] stridx_cfrm;      // confirmed index
-    reg [7:0] stridx_emit;      // index to emit
-    reg stridx_emit_valid;
-    wire stridx_emit_ready;
+    reg [7:0] stridx_send;      // index to send
+    reg stridx_send_valid;
+    wire stridx_send_ready;
 
     assign stridx_grant = grant_idx;
 
     always @(posedge clk or posedge rst) begin
         if (rst) begin
             stridx_cfrm <= 8'd0;
-            stridx_emit <= 8'd0;
-            stridx_emit_valid <= 1'b1;
+            stridx_send <= 8'd0;
+            stridx_send_valid <= 1'b1;
         end else begin
-            if (stridx_emit_valid) begin
-                if (stridx_emit_ready) begin
+            if (stridx_send_valid) begin
+                if (stridx_send_ready) begin
                     // record confirmed index, clr valid for at least 1 cycle
-                    stridx_cfrm <= stridx_emit;
-                    stridx_emit_valid <= 1'b0;
+                    stridx_cfrm <= stridx_send;
+                    stridx_send_valid <= 1'b0;
                 end
             end else begin
-                if ((!stridx_confirmed && grant) || i_emit_stridx) begin
+                if ((!stridx_confirmed && grant) || i_send_stridx) begin
                     // send stridx to the host
-                    stridx_emit <= stridx_grant;
-                    stridx_emit_valid <= 1'b1;
+                    stridx_send <= stridx_grant;
+                    stridx_send_valid <= 1'b1;
                 end
             end
         end
@@ -131,10 +135,10 @@ module cpstr_man_tx #(
     // data passes till the correct stridx is sent to host
     wire stridx_confirmed;
     assign stridx_confirmed = (stridx_grant == stridx_cfrm) &&
-                              !stridx_emit_valid;
+                              !stridx_send_valid;
 
     // stream escaper
-    // via 'emit' mechanism it sends stream idx that was selected by arbiter
+    // via 'esc' mechanism it sends stream idx that was selected by arbiter
     cpstr_esc cpstr_esc (
         .i_clk(clk),
         .i_rst(rst),
@@ -147,9 +151,9 @@ module cpstr_man_tx #(
         .o_valid(o_valid),
         .i_ready(i_ready),
         //
-        .i_emit_data(stridx_emit),
-        .i_emit_valid(stridx_emit_valid),
-        .o_emit_ready(stridx_emit_ready)
+        .i_esc_data(stridx_send),
+        .i_esc_valid(stridx_send_valid),
+        .o_esc_ready(stridx_send_ready)
     );
 
 endmodule
