@@ -29,7 +29,7 @@ module stream_gen (
 
 endmodule
 
-module test_cpstr_man_tx;
+module test_cpstr_mgr_tx;
     stream_gen gen1 (
         .i_clk(clk),
         .i_enable(en[0]),
@@ -57,7 +57,7 @@ module test_cpstr_man_tx;
         .o_valid(src_valid[2])
     );
 
-    cpstr_man_tx #(
+    cpstr_mgr_tx #(
         .NUM_STREAMS(3),
         .MAX_BURST(4)
     ) dut (
@@ -115,7 +115,7 @@ module test_cpstr_man_tx;
     end
 
     initial begin
-        $dumpfile("test_cpstr_man_tx.vcd");
+        $dumpfile("test_cpstr_mgr_tx.vcd");
         $dumpvars;
 
         repeat (5) @(posedge clk);

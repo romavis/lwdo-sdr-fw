@@ -1,4 +1,4 @@
-module cpstr_man_tx #(
+module cpstr_mgr_tx #(
     parameter NUM_STREAMS = 2,
     parameter MAX_BURST = 127
 ) (
