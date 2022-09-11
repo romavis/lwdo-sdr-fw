@@ -86,14 +86,18 @@ module cpstr_mgr_tx #(
     reg [$clog2(MAX_BURST)-1:0] burst_rem;
 
     always @(posedge clk or posedge rst) begin
-        if (rst || !req_others || terminate_burst)
+        if (rst) begin
+            burst_rem <= MAX_BURST - 1;
+        end else begin
             // initialize counter to MAX_BURST on reset or when there are no
             // competing streams (thus no burst limitation if only one stream
             // wants to transmit data)
-            burst_rem <= MAX_BURST - 1;
-        else if (mux_valid && mux_ready)
-            // decrement for each byte transmitted over 'muxed' stream
-            burst_rem <= burst_rem - 1'd1;
+            if (!req_others || terminate_burst)
+                burst_rem <= MAX_BURST - 1;
+            else if (mux_valid && mux_ready)
+                // decrement for each byte transmitted over 'muxed' stream
+                burst_rem <= burst_rem - 1'd1;
+        end
     end
 
     // Stream idx confirmation state machine

@@ -33,7 +33,7 @@ module cpstr_mgr_rx (
         //
         .o_esc_data(esc_data),
         .o_esc_valid(esc_valid),
-        .o_esc_ready(1'b1)
+        .i_esc_ready(1'b1)
     );
 
     // Host should send {1B, FF} to request currently selected stream idx
