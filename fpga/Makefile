@@ -39,17 +39,16 @@ V_MODULES := \
 	$(SRC_DIR)/syncfifo.v \
 	$(SRC_DIR)/crc8.v \
 	$(SRC_DIR)/fastcounter.v \
-	$(SRC_DIR)/cmd_rx.v \
-	$(SRC_DIR)/cmd_tx.v \
-	$(SRC_DIR)/cmd_wb.v \
-	$(SRC_DIR)/mreq_seq2.v \
-	$(SRC_DIR)/mreq_arbiter.v \
-	$(SRC_DIR)/wb_ctrl_port.v \
+	$(SRC_DIR)/wbcon_rx.v \
+	$(SRC_DIR)/wbcon_tx.v \
+	$(SRC_DIR)/wbcon_exec.v \
+	$(SRC_DIR)/wbcon.v \
 	$(SRC_DIR)/wb_mem.v \
 	$(SRC_DIR)/wb_mem_dly.v \
 	$(SRC_DIR)/wb_rxfifo.v \
 	$(SRC_DIR)/wb_dummy.v \
 	$(SRC_DIR)/wb_mux.v \
+	$(SRC_DIR)/cpstr_mgr_rx.v \
 	$(SRC_DIR)/cpstr_mgr_tx.v \
 	$(SRC_DIR)/cpstr_desc.v \
 	$(SRC_DIR)/cpstr_esc.v
@@ -113,10 +112,10 @@ V_MODULES += \
 # Tests
 TESTS := \
 	test_syncfifo \
-	test_cmd_wb \
-	test_cmd_tx \
-	test_cmd_rx \
-	test_wb_ctrl_port \
+	test_wbcon_exec \
+	test_wbcon_tx \
+	test_wbcon_rx \
+	test_wbcon \
 	test_wb_rxfifo \
 	test_dac8551 \
 	test_fastcounter \

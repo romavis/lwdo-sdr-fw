@@ -27,12 +27,10 @@ module stream_gen (
 
 endmodule
 
-module test_cmd_wb;
+module test_wbcon_exec;
 
     localparam WB_ADDR_WIDTH = 6;
-
-    `include "cmd_defines.vh"
-    `include "mreq_defines.vh"
+    localparam COUNT_WIDTH = 8;
 
     wb_mem_dly #(
         .WB_ADDR_WIDTH(WB_ADDR_WIDTH),
@@ -53,16 +51,6 @@ module test_cmd_wb;
         .o_wb_data(wb_data_r)
     );
 
-    // wb_dummy dummy (
-    //     .i_clk(clk),
-    //     // wb
-    //     .i_wb_cyc(wb_cyc),
-    //     .i_wb_stb(wb_stb),
-    //     .o_wb_stall(wb_stall),
-    //     .o_wb_ack(wb_ack),
-    //     .o_wb_data(wb_data_r)
-    // );
-
     stream_gen rx_stream (
         .i_clk(clk),
         .i_enable(1'b1),
@@ -71,8 +59,9 @@ module test_cmd_wb;
         .o_valid(rx_valid)
     );
 
-    cmd_wb #(
-        .WB_ADDR_WIDTH(WB_ADDR_WIDTH)
+    wbcon_exec #(
+        .WB_ADDR_WIDTH(WB_ADDR_WIDTH),
+        .COUNT_WIDTH(COUNT_WIDTH)
     ) dut (
         .i_clk(clk),
         .i_rst(rst),
@@ -89,7 +78,10 @@ module test_cmd_wb;
         // mreq
         .i_mreq_valid(mreq_valid),
         .o_mreq_ready(mreq_ready),
-        .i_mreq(mreq),
+        .i_mreq_addr(mreq_addr),
+        .i_mreq_cnt(mreq_cnt),
+        .i_mreq_wr(mreq_wr),
+        .i_mreq_aincr(mreq_aincr),
         // rx
         .o_rx_ready(rx_ready),
         .i_rx_data(rx_data),
@@ -116,13 +108,10 @@ module test_cmd_wb;
     reg mreq_valid = 0;
     wire mreq_ready;
     // mreq descriptor
-    reg [MREQ_NBIT-1:0] mreq = 0;
-    reg [7:0] mreq_tag = 0;
     reg mreq_wr = 0;
     reg mreq_aincr = 0;
-    reg [2:0] mreq_wfmt = 0;
-    reg [7:0] mreq_wcnt = 0;
-    reg [23:0] mreq_addr = 0;
+    reg [COUNT_WIDTH-1:0] mreq_cnt = 0;
+    reg [WB_ADDR_WIDTH-1:0] mreq_addr = 0;
     // rx stream
     wire [7:0] rx_data;
     wire rx_valid;
@@ -134,33 +123,32 @@ module test_cmd_wb;
 
     always #5 clk = ~clk;
 
-    reg mreq_ready_past = 0;
     always @(posedge clk) begin
-        mreq_ready_past <= mreq_ready;
         if (rx_valid && rx_ready) begin
-            $display("Rx: CMD_WB consumed byte 0x%02x", rx_data);
+            $display("Rx:       0x%02x", rx_data);
         end
         if (tx_valid && tx_ready) begin
-            $display("Tx: CMD_WB produced byte 0x%02x", tx_data);
+            $display("Tx:           0x%02x", tx_data);
+        end
+        if (wb_cyc && wb_stb && !wb_stall) begin
+            $display("WB: req addr=0x%0x sel=%4b we=%b wdata=0x%08x",
+                wb_addr,
+                wb_sel,
+                wb_we,
+                wb_data_w
+            );
+        end
+        if (wb_cyc && wb_ack) begin
+            $display("WB: ack rdata=0x%08x", wb_data_r);
         end
         if (mreq_valid && mreq_ready) begin
-            unpack_mreq(
-                mreq,
-                mreq_tag, mreq_wr, mreq_aincr, mreq_wfmt, mreq_wcnt, mreq_addr
-            );
-            $display("MREQ: CMD_WB acknowledged request: tag=%02x wr=%b aincr=%b wfmt=%03b wcnt=%03d addr=0x%08x",
-                mreq_tag,
-                mreq_wr,
-                mreq_aincr,
-                mreq_wfmt,
-                mreq_wcnt,
-                mreq_addr
-            );
+            $display(">>>> MREQ ack: addr=%x cnt=%x wr=%d aincr=%d",
+                mreq_addr, mreq_cnt, mreq_wr, mreq_aincr);
         end
     end
 
     initial begin
-        $dumpfile("test_cmd_wb.vcd");
+        $dumpfile("test_wbcon_exec.vcd");
         $dumpvars(0);
 
 
@@ -169,100 +157,77 @@ module test_cmd_wb;
         rst <= 0;
 
         // --REQ-- Write something
-        mreq <= pack_mreq(
-            8'hAA,              // tag
-            1,                  // wr
-            1,                  // aincr
-            MREQ_WFMT_32S0,     // wfmt
-            8'd3,               // wcnt
-            23'h000003,         // addr
-        );
+        mreq_wr <= 1;
+        mreq_aincr <= 1;
+        mreq_addr <= 3;
+        mreq_cnt <= 4-1;
 
         mreq_valid <= 1'b1;
-        @(posedge clk); wait(mreq_ready) @(posedge clk);
+        while(!mreq_ready) @(posedge clk);
         mreq_valid <= 1'b0;
+        @(posedge clk);
 
         // --REQ-- Write something
-        mreq <= pack_mreq(
-            8'hCC,              // tag
-            1,                  // wr
-            1,                  // aincr
-            MREQ_WFMT_16S0,     // wfmt
-            8'd3,               // wcnt
-            23'h000007,         // addr
-        );
+        mreq_wr <= 1;
+        mreq_aincr <= 1;
+        mreq_addr <= 0;
+        mreq_cnt <= 4-1;
 
         mreq_valid <= 1'b1;
-        @(posedge clk); wait(mreq_ready) @(posedge clk);
+        while(!mreq_ready) @(posedge clk);
         mreq_valid <= 1'b0;
+        @(posedge clk);
 
         // --REQ-- Write something
-        mreq <= pack_mreq(
-            8'hCC,              // tag
-            1,                  // wr
-            1,                  // aincr
-            MREQ_WFMT_8S2,      // wfmt
-            8'd3,               // wcnt
-            23'h000007,         // addr
-        );
+        mreq_wr <= 1;
+        mreq_aincr <= 0;
+        mreq_addr <= 1;
+        mreq_cnt <= 4-1;
 
         mreq_valid <= 1'b1;
-        @(posedge clk); wait(mreq_ready) @(posedge clk);
+        while(!mreq_ready) @(posedge clk);
         mreq_valid <= 1'b0;
+        @(posedge clk);
 
         // --REQ-- Read something
-        mreq <= pack_mreq(
-            8'hCC,              // tag
-            0,                  // wr
-            1,                  // aincr
-            MREQ_WFMT_8S0,      // wfmt
-            8'd3,               // wcnt
-            23'h000003,         // addr
-        );
+        mreq_wr <= 0;
+        mreq_aincr <= 1;
+        mreq_addr <= 0;
+        mreq_cnt <= 16-1;
 
         mreq_valid <= 1'b1;
 
         repeat (10) @(posedge clk);
         // unblock tx
         tx_ready <= 1'b1;
-        @(posedge clk); wait(mreq_ready) @(posedge clk);
+        while(!mreq_ready) @(posedge clk);
         mreq_valid <= 1'b0;
 
         repeat(10) @(posedge clk);
 
         // --REQ-- Read something
-        mreq <= pack_mreq(
-            8'hCC,              // tag
-            0,                  // wr
-            1,                  // aincr
-            MREQ_WFMT_16S0,     // wfmt
-            8'd15,              // wcnt
-            23'h000000,         // addr
-        );
+        mreq_wr <= 0;
+        mreq_aincr <= 0;
+        mreq_addr <= 0;
+        mreq_cnt <= 4-1;
 
         mreq_valid <= 1'b1;
-        @(posedge clk); wait(mreq_ready) @(posedge clk);
+        while(!mreq_ready) @(posedge clk);
         mreq_valid <= 1'b0;
-
-        repeat(10) @(posedge clk);
+        @(posedge clk);
 
         // --REQ-- Read something
-        mreq <= pack_mreq(
-            8'hCC,              // tag
-            0,                  // wr
-            1,                  // aincr
-            MREQ_WFMT_8S2,      // wfmt
-            8'd15,              // wcnt
-            23'h000000,         // addr
-        );
+        mreq_wr <= 0;
+        mreq_aincr <= 0;
+        mreq_addr <= 8;
+        mreq_cnt <= 4-1;
 
         mreq_valid <= 1'b1;
-        @(posedge clk); wait(mreq_ready) @(posedge clk);
+        while(!mreq_ready) @(posedge clk);
         mreq_valid <= 1'b0;
+        @(posedge clk);
 
         repeat (20) @(posedge clk);
-
-
 
         $finish;
     end

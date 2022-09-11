@@ -23,48 +23,80 @@ module stream_gen (
         test_vector[i++] = 8'h00;
         // Garbage
         test_vector[i++] = 8'h23;
-        test_vector[i++] = 8'hFE;
+        test_vector[i++] = 8'hE0;
         test_vector[i++] = 8'h01;
         test_vector[i++] = 8'h00;
         test_vector[i++] = 8'hFA;
         test_vector[i++] = 8'h77;
-        // CRC error
-        test_vector[i++] = 8'hA3;           // START
-        test_vector[i++] = 8'b0000_0000;    // DSC
-        test_vector[i++] = 8'h00;           // TAG
-        test_vector[i++] = 8'h00;           // WCNT
-        test_vector[i++] = 8'h00;           // A0
-        test_vector[i++] = 8'h00;           // A1
-        test_vector[i++] = 8'h00;           // A2
-        test_vector[i++] = 8'h00;           // CRC
-        // Packet
-        test_vector[i++] = 8'hA3;           // START
-        test_vector[i++] = 8'b0001_1001;    // DSC
-        test_vector[i++] = 8'hEA;           // TAG
-        test_vector[i++] = 8'hCD;           // WCNT
-        test_vector[i++] = 8'h56;           // A0
-        test_vector[i++] = 8'h34;           // A1
-        test_vector[i++] = 8'h12;           // A2
-        test_vector[i++] = 8'h8D;           // CRC
-        // Packet
-        test_vector[i++] = 8'hA3;           // START
-        test_vector[i++] = 8'b0110_1000;    // DSC
-        test_vector[i++] = 8'h05;           // TAG
-        test_vector[i++] = 8'h11;           // WCNT
-        test_vector[i++] = 8'hCC;           // A0
-        test_vector[i++] = 8'hBB;           // A1
-        test_vector[i++] = 8'hAA;           // A2
-        test_vector[i++] = 8'h23;           // CRC
-        // Packet
-        test_vector[i++] = 8'hA3;           // START
-        test_vector[i++] = 8'b0100_0001;    // DSC
-        test_vector[i++] = 8'h00;           // TAG
-        test_vector[i++] = 8'hFF;           // WCNT
-        test_vector[i++] = 8'h33;           // A0
-        test_vector[i++] = 8'h22;           // A1
-        test_vector[i++] = 8'h11;           // A2
-        test_vector[i++] = 8'h6C;           // CRC
-
+        // Command 1 - WR_AINCR
+        test_vector[i++] = 8'hA3;   // CMD
+        test_vector[i++] = 8'd03;   // CNT0
+        test_vector[i++] = 8'd00;   // ADDR0
+        test_vector[i++] = 8'hA0;   // DATA
+        test_vector[i++] = 8'hA1;   // DATA
+        test_vector[i++] = 8'hA2;   // DATA
+        test_vector[i++] = 8'hA3;   // DATA
+        test_vector[i++] = 8'hA4;   // DATA
+        test_vector[i++] = 8'hA5;   // DATA
+        test_vector[i++] = 8'hA6;   // DATA
+        test_vector[i++] = 8'hA7;   // DATA
+        test_vector[i++] = 8'hA8;   // DATA
+        test_vector[i++] = 8'hA9;   // DATA
+        test_vector[i++] = 8'hAA;   // DATA
+        test_vector[i++] = 8'hAB;   // DATA
+        test_vector[i++] = 8'hAC;   // DATA
+        test_vector[i++] = 8'hAD;   // DATA
+        test_vector[i++] = 8'hAE;   // DATA
+        test_vector[i++] = 8'hAF;   // DATA
+        // Command 2 - WR_AINCR
+        test_vector[i++] = 8'hA3;   // CMD
+        test_vector[i++] = 8'd00;   // CNT0
+        test_vector[i++] = 8'd00;   // ADDR0
+        test_vector[i++] = 8'hB0;   // DATA
+        test_vector[i++] = 8'hB1;   // DATA
+        test_vector[i++] = 8'hB2;   // DATA
+        test_vector[i++] = 8'hB3;   // DATA
+        // Command 3 - WR_FIXED
+        test_vector[i++] = 8'hA1;   // CMD
+        test_vector[i++] = 8'd02;   // CNT0
+        test_vector[i++] = 8'd01;   // ADDR0
+        test_vector[i++] = 8'hB0;   // DATA
+        test_vector[i++] = 8'hB1;   // DATA
+        test_vector[i++] = 8'hB2;   // DATA
+        test_vector[i++] = 8'hB3;   // DATA
+        test_vector[i++] = 8'hB4;   // DATA
+        test_vector[i++] = 8'hB5;   // DATA
+        test_vector[i++] = 8'hB6;   // DATA
+        test_vector[i++] = 8'hB7;   // DATA
+        test_vector[i++] = 8'hB8;   // DATA
+        test_vector[i++] = 8'hB9;   // DATA
+        test_vector[i++] = 8'hBA;   // DATA
+        test_vector[i++] = 8'hBB;   // DATA
+        // Command 4 - RD_FIXED
+        test_vector[i++] = 8'hA2;   // CMD
+        test_vector[i++] = 8'd01;   // CNT0
+        test_vector[i++] = 8'd01;   // ADDR0
+        // Command 5 - WR_AINCR
+        test_vector[i++] = 8'hA3;   // CMD
+        test_vector[i++] = 8'd01;   // CNT0
+        test_vector[i++] = 8'd05;   // ADDR0
+        test_vector[i++] = 8'hC0;   // DATA
+        test_vector[i++] = 8'hC1;   // DATA
+        test_vector[i++] = 8'hC2;   // DATA
+        test_vector[i++] = 8'hC3;   // DATA
+        test_vector[i++] = 8'hC4;   // DATA
+        test_vector[i++] = 8'hC5;   // DATA
+        test_vector[i++] = 8'hC6;   // DATA
+        test_vector[i++] = 8'hC7;   // DATA
+        // Command 6 - RD_AINCR
+        test_vector[i++] = 8'hA4;   // CMD
+        test_vector[i++] = 8'd07;   // CNT0
+        test_vector[i++] = 8'd00;   // ADDR0
+        // Garbage
+        test_vector[i++] = 8'h23;
+        test_vector[i++] = 8'hE0;
+        test_vector[i++] = 8'h01;
+        //
         for (i = i; i < 1024; i = i + 1) begin
             test_vector[i] = 8'b0;
         end
@@ -82,13 +114,10 @@ module stream_gen (
 
 endmodule
 
-module test_cmd_wb;
+module test_wbcon;
 
     localparam WB_ADDR_WIDTH = 8;
-    localparam EMREQ_NUM = 2;
-
-    `include "cmd_defines.vh"
-    `include "mreq_defines.vh"
+    localparam COUNT_WIDTH = 8;
 
     wb_mem_dly #(
         .WB_ADDR_WIDTH(WB_ADDR_WIDTH),
@@ -111,20 +140,18 @@ module test_cmd_wb;
 
     stream_gen rx_stream (
         .i_clk(clk),
-        .i_enable(1'b1),
+        .i_enable(rx_en),
         .i_ready(rx_ready),
         .o_data(rx_data),
         .o_valid(rx_valid)
     );
 
-    wb_ctrl_port #(
+    wbcon #(
         .WB_ADDR_WIDTH(WB_ADDR_WIDTH),
-        .NUM_EMREQS(EMREQ_NUM)
+        .COUNT_WIDTH(COUNT_WIDTH)
     ) dut (
         .i_clk(clk),
         .i_rst(rst),
-        //
-        .o_err_crc(err_crc),
         // wb
         .o_wb_cyc(wb_cyc),
         .o_wb_stb(wb_stb),
@@ -142,30 +169,12 @@ module test_cmd_wb;
         // tx
         .i_tx_ready(tx_ready),
         .o_tx_data(tx_data),
-        .o_tx_valid(tx_valid),
-        // EMREQs
-        .i_emreqs_valid({EMREQ_NUM{1'b1}}),
-        .i_emreqs({
-            pack_mreq(8'hEE, 1'b0, 1'b1, MREQ_WFMT_32S0, 2, 24'hAABBCC),
-            pack_mreq(8'hAA, 1'b0, 1'b0, MREQ_WFMT_16S1, 3, 24'h112233)
-            })
+        .o_tx_valid(tx_valid)
     );
-
-    // localparam NREQS = 3;
-    // localparam IREQ_BITS = 2;
-
-    // mreq_arbiter #(
-    //     .NREQS(NREQS),
-    //     .IREQ_BITS(IREQ_BITS)
-    // ) arb (
-    //     .i_clk(clk),
-    //     .i_rst(rst),
-    //     .i_mreqs_valid({1'b1, 1'b1, })
-    // );
 
     reg clk = 0;
     reg rst = 0;
-    wire err_crc;
+    reg rx_en = 1;
     // wb
     wire wb_cyc;
     wire wb_stb;
@@ -194,9 +203,6 @@ module test_cmd_wb;
         if (tx_valid && tx_ready) begin
             $display("Tx:     0x%02x", tx_data);
         end
-        if (err_crc) begin
-            $display("Rx: WB_CTRL_PORT reports CRC error");
-        end
         if (wb_cyc && wb_stb && !wb_stall) begin
             $display("WB: req addr=0x%0x sel=%4b we=%b wdata=0x%08x",
                 wb_addr,
@@ -211,9 +217,8 @@ module test_cmd_wb;
     end
 
     initial begin
-        $dumpfile("test_wb_ctrl_port.vcd");
+        $dumpfile("test_wbcon.vcd");
         $dumpvars(0);
-
 
         repeat (5) @(posedge clk);
         rst <= 1;
@@ -222,19 +227,15 @@ module test_cmd_wb;
         repeat (5) @(posedge clk);
 
         tx_ready <= 1;
-        repeat (20) @(posedge clk);
+        repeat (10) @(posedge clk);
+        rx_en <= 0;
+        repeat (10) @(posedge clk);
         tx_ready <= 0;
+        repeat (10) @(posedge clk);
+        rx_en <= 1;
         repeat (50) @(posedge clk);
         tx_ready <= 1;
         repeat (150) @(posedge clk);
-
-        // It should be stalled here. Reset
-        rst <= 1;
-        @(posedge clk);
-        rst <= 0;
-        // Continue processing
-        repeat (150) @(posedge clk);
-
 
         $finish;
     end
