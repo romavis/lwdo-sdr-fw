@@ -23,53 +23,62 @@ module cpstr_mgr_tx #(
     assign clk = i_clk;
     assign rst = i_rst;
 
-    // burst termination signal
-    wire terminate_burst;
-    assign terminate_burst = !burst_rem && mux_valid && mux_ready;
+    // States
+    wire mux_ack = mux_valid && mux_ready;
+    wire other_avail = |(i_valid & ~grant);
 
-    // arbiter module (from verilog-wishbone)
-    wire [NUM_STREAMS-1:0] req_others;
-    wire [NUM_STREAMS-1:0] req;
-    wire [NUM_STREAMS-1:0] grant;
-    wire [NUM_STREAMS-1:0] grant_ack;
-    wire [$clog2(NUM_STREAMS)-1:0] grant_idx;
+    // Arbiter driver state machine
+    // To reduce critical path length, arbitration and submission of selected
+    // stream index is governed by a state machine, not by arbiter itself.
+    localparam ST_REQ_ARBITRATION = 2'd0;
+    localparam ST_SEND_STREAM_IDX = 2'd1;
+    localparam ST_ROUTE = 2'd2;
 
-    assign req_others = i_valid & ~grant;
-    // normally request follows `i_valid`, but if burst counter signals end
-    // of the burst, it switches to `req_others` to make arbiter switch
-    assign req = terminate_burst ? req_others : i_valid;
+    reg [1:0] state;
+    reg [1:0] state_next;
 
-    /*
-     * Some notes:
-     *  grant[i]==1 means stream `i` is selected
-     *  grant is one-hot, only a single bit can be 1
-     *  grant_idx is equal to `i` or `0` if grant==0
-     * With ARB_BLOCK=1, ARB_BLOCK_ACK=0 arbiter arbitrates whenever request
-     * is _de-asserted_. That's how we trigger arbitration when burst counter
-     * signals end of burst.
-     */
-    arbiter #(
-        .PORTS(NUM_STREAMS),
-        .ARB_BLOCK(1),
-        .ARB_BLOCK_ACK(0),
-        .ARB_TYPE_ROUND_ROBIN(1)
-    ) arbiter (
-        .clk(i_clk),
-        .rst(i_rst),
-        //
-        .request(req),
-        .grant(grant),
-        .grant_encoded(grant_idx)
-    );
+    always @(posedge clk or posedge rst)
+        if (rst) state <= ST_REQ_ARBITRATION;
+        else state <= state_next;
+
+    always @(*) begin
+        state_next = state;
+        case(state)
+        ST_REQ_ARBITRATION:
+            if (arb_grant)
+                state_next = ST_SEND_STREAM_IDX;
+        ST_SEND_STREAM_IDX:
+            if (stridx_ready)
+                state_next = ST_ROUTE;
+        ST_ROUTE:
+            if (other_avail &&
+                (!mux_valid || (!burst_rem && mux_ack)))
+                state_next = ST_REQ_ARBITRATION;
+            else if (i_send_stridx)
+                state_next = ST_SEND_STREAM_IDX;
+        endcase
+    end
+
+    // selected stream
+    reg [NUM_STREAMS-1:0] grant;
+    reg [$clog2(NUM_STREAMS)-1:0] grant_idx;
+
+    always @(posedge clk or posedge rst)
+        if (rst) begin
+            grant <= 0;
+            grant_idx <= 0;
+        end
+        else
+        if (state == ST_REQ_ARBITRATION &&
+                state_next == ST_SEND_STREAM_IDX) begin
+            grant <= arb_grant;
+            grant_idx <= arb_grant_idx;
+        end
 
     // multiplexed stream
-    // valid and ready are gated by stridx_confirmed, so that mux stream
-    // becomes active only when stridx has been confirmed
     reg [7:0] mux_data;
-    wire mux_valid;
+    wire mux_valid = (state == ST_ROUTE) && |(i_valid & grant);
     wire mux_ready;
-
-    assign mux_valid = stridx_confirmed && |(i_valid & grant);
 
     always @(*) begin
         mux_data = 8'd0;
@@ -79,8 +88,7 @@ module cpstr_mgr_tx #(
     end
 
     // upstream ready - same gating logic as for mux_valid
-    assign o_ready = grant &
-                    {NUM_STREAMS{mux_ready && stridx_confirmed}};
+    assign o_ready = grant & {NUM_STREAMS{(state == ST_ROUTE) && mux_ready}};
 
     // burst byte counter
     reg [$clog2(MAX_BURST)-1:0] burst_rem;
@@ -89,57 +97,47 @@ module cpstr_mgr_tx #(
         if (rst) begin
             burst_rem <= MAX_BURST - 1;
         end else begin
-            // initialize counter to MAX_BURST on reset or when there are no
-            // competing streams (thus no burst limitation if only one stream
-            // wants to transmit data)
-            if (!req_others || terminate_burst)
+            if (state != ST_ROUTE)
                 burst_rem <= MAX_BURST - 1;
-            else if (mux_valid && mux_ready)
+            else if (burst_rem && mux_ack)
                 // decrement for each byte transmitted over 'muxed' stream
                 burst_rem <= burst_rem - 1'd1;
         end
     end
 
-    // Stream idx confirmation state machine
-    // When arbiter selects a new stream, we use cpstr_esc's 'esc' mechanism
-    // to send {ESC_CHAR, grant_idx} to the host. While that pair of bytes is
-    // in process of being sent, incoming streams are blocked.
-    // This machine reacts to any change in grant_idx on arbiter's output.
-    wire [7:0] stridx_grant;    // index selected by arbiter
-    reg [7:0] stridx_cfrm;      // confirmed index
-    reg [7:0] stridx_send;      // index to send
-    reg stridx_send_valid;
-    wire stridx_send_ready;
+    // masking (used to terminate burst)
+    reg [NUM_STREAMS-1:0] burst_mask;
 
-    assign stridx_grant = grant_idx;
+    always @(posedge clk or posedge rst)
+        if (rst)
+            burst_mask <= 0;
+        else if (state != ST_ROUTE)
+            burst_mask <= 0;
+        else
+            burst_mask <= grant;
 
-    always @(posedge clk or posedge rst) begin
-        if (rst) begin
-            stridx_cfrm <= 8'd0;
-            stridx_send <= 8'd0;
-            stridx_send_valid <= 1'b1;
-        end else begin
-            if (stridx_send_valid) begin
-                if (stridx_send_ready) begin
-                    // record confirmed index, clr valid for at least 1 cycle
-                    stridx_cfrm <= stridx_send;
-                    stridx_send_valid <= 1'b0;
-                end
-            end else begin
-                if ((!stridx_confirmed && grant) || i_send_stridx) begin
-                    // send stridx to the host
-                    stridx_send <= stridx_grant;
-                    stridx_send_valid <= 1'b1;
-                end
-            end
-        end
-    end
+    // arbiter module (from verilog-wishbone)
+    wire [NUM_STREAMS-1:0] arb_req;
+    wire [NUM_STREAMS-1:0] arb_grant;
+    wire [$clog2(NUM_STREAMS)-1:0] arb_grant_idx;
 
-    // when stridx is not confirmed, mux stream should be gated so that no
-    // data passes till the correct stridx is sent to host
-    wire stridx_confirmed;
-    assign stridx_confirmed = (stridx_grant == stridx_cfrm) &&
-                              !stridx_send_valid;
+    assign arb_req = i_valid & ~burst_mask;
+
+    rr_arbiter #(
+        .NUM_PORTS(NUM_STREAMS)
+    ) arbiter (
+        .clk(i_clk),
+        .rst(i_rst),
+        //
+        .request(arb_req),
+        .grant(arb_grant),
+        .select(arb_grant_idx)
+    );
+
+    // stream index sender
+    wire [7:0] stridx_val = grant_idx;
+    wire stridx_valid = (state == ST_SEND_STREAM_IDX);
+    wire stridx_ready;
 
     // stream escaper
     // via 'esc' mechanism it sends stream idx that was selected by arbiter
@@ -155,9 +153,9 @@ module cpstr_mgr_tx #(
         .o_valid(o_valid),
         .i_ready(i_ready),
         //
-        .i_esc_data(stridx_send),
-        .i_esc_valid(stridx_send_valid),
-        .o_esc_ready(stridx_send_ready)
+        .i_esc_data(stridx_val),
+        .i_esc_valid(stridx_valid),
+        .o_esc_ready(stridx_ready)
     );
 
 endmodule

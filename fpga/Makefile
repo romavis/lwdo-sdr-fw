@@ -32,6 +32,7 @@ all: $(OUT_DIR)/$(PROJ).bin
 
 V_MODULES := \
 	$(SRC_DIR)/top.v \
+	$(SRC_DIR)/rr_arbiter.v \
 	$(SRC_DIR)/ad7357if.v \
 	$(SRC_DIR)/dac8551.v \
 	$(SRC_DIR)/ft245sync.v \

@@ -112,6 +112,9 @@ module test_cpstr_mgr_tx;
         if (dst_valid && dst_ready) begin
             $display("DST:       0x%02x", dst_data);
         end
+        if (send_stridx) begin
+            $display("SEND STRIDX");
+        end
     end
 
     initial begin
