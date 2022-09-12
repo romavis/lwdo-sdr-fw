@@ -38,30 +38,43 @@ module cpstr_esc #(
 
     // Stream routing state machine
     reg [1:0] route;
-    reg [1:0] route_prev;
+    reg [1:0] route_next;
 
     localparam ROUTE_MAIN = 2'd0;
     localparam ROUTE_ESC = 2'd1;
     localparam ROUTE_ESC_GEN_MAIN = 2'd2;
     localparam ROUTE_ESC_GEN_ESC = 2'd3;
 
-    always @(*) begin
-        route = ROUTE_MAIN;
-        if (route_prev == ROUTE_ESC_GEN_ESC)
-            route = ROUTE_ESC;
-        else if (route_prev == ROUTE_ESC_GEN_MAIN)
-            route = ROUTE_MAIN;
-        else if (i_esc_valid)
-            route = ROUTE_ESC_GEN_ESC;
-        else if (i_data == ESC_CHAR && i_valid)
-            route = ROUTE_ESC_GEN_MAIN;
-    end
-
     always @(posedge clk or posedge rst) begin
         if (rst)
-            route_prev <= ROUTE_MAIN;
-        else if(byte_sent)
-            route_prev <= route;
+            route <= ROUTE_MAIN;
+        else
+            route <= route_next;
+    end
+
+    always @(*) begin
+        route_next = route;
+        case (route)
+
+        ROUTE_MAIN:
+            if (byte_sent && i_data == ESC_CHAR)
+                route_next = ROUTE_ESC_GEN_MAIN;
+            else if (i_esc_valid)
+                route_next = ROUTE_ESC_GEN_ESC;
+
+        ROUTE_ESC_GEN_MAIN:
+            if (byte_sent)
+                route_next = ROUTE_MAIN;
+
+        ROUTE_ESC_GEN_ESC:
+            if (byte_sent)
+                route_next = ROUTE_ESC;
+
+        ROUTE_ESC:
+            if (byte_sent)
+                route_next = ROUTE_MAIN;
+
+        endcase
     end
 
     // Stream routing

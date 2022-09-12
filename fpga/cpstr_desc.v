@@ -34,64 +34,92 @@ module cpstr_desc #(
     wire byte_recv;
     assign byte_recv = i_valid & o_ready;
 
-    // Whether we're handling byte after ESC right now
-    reg esc_recv;
+    // 1-byte buffer
+    reg [7:0] reg_data;
+    reg reg_used;
+    // output
+    wire reg_ovalid = reg_used;
+    reg reg_iready;
+    // input
+    assign o_ready = !reg_used || reg_iready;
 
-    always @(posedge clk or posedge rst) begin
+    always @(posedge clk or posedge rst)
         if (rst) begin
-            esc_recv <= 1'b0;
+            reg_data <= 8'd0;
+            reg_used <= 1'b0;
         end else begin
-            if (esc_recv && byte_recv)
-                esc_recv <= 1'b0;
-            else if (i_data == ESC_CHAR && byte_recv)
-                esc_recv <= 1'b1;
+            if (i_valid && o_ready) begin
+                reg_data <= i_data;
+                reg_used <= 1'b1;
+            end else if (reg_ovalid && reg_iready)
+                reg_used <= 1'b0;
         end
-    end
 
-    // Where incoming bytes are routed
+    // State machine
     reg [1:0] route;
+    reg [1:0] route_next;
 
     localparam ROUTE_MAIN = 2'd0;
     localparam ROUTE_ESC = 2'd1;
     localparam ROUTE_DROP = 2'd2;
 
-    always @(*) begin
-        if (esc_recv)
-            route = (i_data == ESC_CHAR) ? ROUTE_MAIN : ROUTE_ESC;
+    always @(posedge clk or posedge rst)
+        if (rst)
+            route <= ROUTE_MAIN;
         else
-            route = (i_data == ESC_CHAR) ? ROUTE_DROP : ROUTE_MAIN;
+            route <= route_next;
+
+    always @(*) begin
+        route_next = route;
+        case (route)
+
+        ROUTE_MAIN, ROUTE_ESC:
+            if (byte_recv) begin
+                if(i_data == ESC_CHAR)
+                    route_next = ROUTE_DROP;
+                else
+                    route_next = ROUTE_MAIN;
+            end
+
+        ROUTE_DROP:
+            if (byte_recv) begin
+                if(i_data == ESC_CHAR)
+                    route_next = ROUTE_MAIN;
+                else
+                    route_next = ROUTE_ESC;
+            end
+
+        endcase
     end
 
     // Stream routing
     reg main_valid;
     reg esc_valid;
-    reg recv_ready;
 
     always @(*) begin
         main_valid = 1'b0;
         esc_valid = 1'b0;
-        recv_ready = 1'b0;
+        reg_iready = 1'b0;
         case(route)
         ROUTE_MAIN: begin
-            main_valid = i_valid;
-            recv_ready = i_ready;
+            main_valid = reg_ovalid;
+            reg_iready = i_ready;
         end
 
         ROUTE_ESC: begin
-            esc_valid = i_valid;
-            recv_ready = i_esc_ready;
+            esc_valid = reg_ovalid;
+            reg_iready = i_esc_ready;
         end
 
         ROUTE_DROP: begin
-            recv_ready = 1'b1;
+            reg_iready = 1'b1;
         end
         endcase
     end
 
-    assign o_data = i_data;
+    assign o_data = reg_data;
     assign o_valid = main_valid;
-    assign o_esc_data = i_data;
+    assign o_esc_data = reg_data;
     assign o_esc_valid = esc_valid;
-    assign o_ready = recv_ready;
 
 endmodule

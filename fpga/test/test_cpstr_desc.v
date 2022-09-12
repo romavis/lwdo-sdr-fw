@@ -130,6 +130,8 @@ module test_cpstr_desc;
         repeat (5) @(posedge clk);
         esc_ready <= 1;
         repeat (5) @(posedge clk);
+        en <= 0;
+        repeat (5) @(posedge clk);
 
         $finish;
     end
