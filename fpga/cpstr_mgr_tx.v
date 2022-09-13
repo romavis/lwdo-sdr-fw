@@ -38,7 +38,7 @@ module cpstr_mgr_tx #(
     reg [1:0] state_next;
 
     always @(posedge clk or posedge rst)
-        if (rst) state <= ST_REQ_ARBITRATION;
+        if (rst) state <= ST_SEND_STREAM_IDX;
         else state <= state_next;
 
     always @(*) begin
@@ -65,8 +65,9 @@ module cpstr_mgr_tx #(
 
     always @(posedge clk or posedge rst)
         if (rst) begin
-            grant <= 0;
-            grant_idx <= 0;
+            // By default select first stream
+            grant <= 1'b1;
+            grant_idx <= 1'd0;
         end
         else
         if (state == ST_REQ_ARBITRATION &&
