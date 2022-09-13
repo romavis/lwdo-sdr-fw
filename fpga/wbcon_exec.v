@@ -1,6 +1,8 @@
 module wbcon_exec #(
+    parameter COUNT_WIDTH = 8,      // MREQ word count width
     parameter WB_ADDR_WIDTH = 24,   // WB word address width
-    parameter COUNT_WIDTH = 8       // MREQ word count width
+    parameter WB_DATA_WIDTH = 32,
+    parameter WB_SEL_WIDTH = (WB_DATA_WIDTH + 7) / 8
 )
 (
     // Clock (posedge) and sync reset
@@ -13,9 +15,9 @@ module wbcon_exec #(
     input i_wb_ack,
     output o_wb_we,
     output [WB_ADDR_WIDTH-1:0] o_wb_addr,
-    output [31:0] o_wb_data,
-    output [3:0] o_wb_sel,
-    input [31:0] i_wb_data,
+    output [WB_DATA_WIDTH-1:0] o_wb_data,
+    output [WB_SEL_WIDTH-1:0] o_wb_sel,
+    input [WB_DATA_WIDTH-1:0] i_wb_data,
     // Rx data stream (for write requests)
     input i_rx_valid,
     input [7:0] i_rx_data,
@@ -32,6 +34,9 @@ module wbcon_exec #(
     input i_mreq_wr,
     input i_mreq_aincr
 );
+
+    localparam WORD_SIZE = (WB_DATA_WIDTH + 7) / 8;
+    localparam BYTE_CNT_BITS = (WORD_SIZE >= 2) ? $clog2(WORD_SIZE) : 1;
 
     // SysCon
     wire clk;
@@ -126,11 +131,11 @@ module wbcon_exec #(
     end
 
     // WB data construction and deconstruction
-    reg [1:0] wb_byte_ctr;
-    reg [31:0] wb_data;
+    reg [BYTE_CNT_BITS-1:0] wb_byte_ctr;
+    reg [WB_DATA_WIDTH-1:0] wb_data;
 
     wire wb_last_byte;
-    assign wb_last_byte = (wb_byte_ctr == 2'd3);
+    assign wb_last_byte = (wb_byte_ctr == (WORD_SIZE-1));
 
     always @(posedge clk or posedge rst) begin
         if (rst) begin
@@ -141,7 +146,7 @@ module wbcon_exec #(
             if (state_change && (state_next == ST_CONSTRUCT_WORD)) begin
                 wb_byte_ctr <= 0;
                 // (WB write) zero-fill data word
-                wb_data <= 32'd0;
+                wb_data <= 0;
             end
             // Init word deconstruction: reset counters, capture data word into data register
             if (state_change && (state_next == ST_DECONSTRUCT_WORD)) begin
@@ -219,7 +224,7 @@ module wbcon_exec #(
     assign o_wb_we = mreq_wr;
     assign o_wb_addr = wb_addr;
     assign o_wb_data = wb_data;
-    assign o_wb_sel = 4'b1111;  // our module always writes full words
+    assign o_wb_sel = {WORD_SIZE{1'b1}};    // our module always writes full words
     // MREQ ready
     assign o_mreq_ready = (state_next == ST_IDLE && state_change);
     // Rx ready

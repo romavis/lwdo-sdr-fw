@@ -10,8 +10,10 @@ For more info see internal modules: wbcon_rx, wbcon_tx, wbcon_exec.
 ****************************************************************************/
 
 module wbcon #(
+    parameter COUNT_WIDTH = 8,
     parameter WB_ADDR_WIDTH = 24,
-    parameter COUNT_WIDTH = 8
+    parameter WB_DATA_WIDTH = 32,
+    parameter WB_SEL_WIDTH = (WB_DATA_WIDTH + 7) / 8
 )
 (
     input i_clk,
@@ -31,9 +33,9 @@ module wbcon #(
     input i_wb_ack,
     output o_wb_we,
     output [WB_ADDR_WIDTH-1:0] o_wb_addr,
-    output [31:0] o_wb_data,
-    output [3:0] o_wb_sel,
-    input [31:0] i_wb_data
+    output [WB_DATA_WIDTH-1:0] o_wb_data,
+    output [WB_SEL_WIDTH-1:0] o_wb_sel,
+    input [WB_DATA_WIDTH-1:0] i_wb_data
 );
     // SYSCON
     wire rst;
@@ -106,8 +108,10 @@ module wbcon #(
 
     // wbcon_exec
     wbcon_exec #(
+        .COUNT_WIDTH(COUNT_WIDTH),
         .WB_ADDR_WIDTH(WB_ADDR_WIDTH),
-        .COUNT_WIDTH(COUNT_WIDTH)
+        .WB_DATA_WIDTH(WB_DATA_WIDTH),
+        .WB_SEL_WIDTH(WB_SEL_WIDTH)
     ) wbcon_exec (
         .i_clk(clk),
         .i_rst(rst),

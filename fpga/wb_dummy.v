@@ -1,4 +1,7 @@
-module wb_dummy (
+module wb_dummy #(
+    parameter WB_DATA_WIDTH = 32,
+    parameter [WB_DATA_WIDTH-1:0] DUMMY_VALUE = 32'hDEADBEEF
+) (
     // Clock (posedge) and sync reset
     input i_clk,
     // Wishbone bus slave
@@ -6,12 +9,12 @@ module wb_dummy (
     input i_wb_stb,
     output o_wb_stall,
     output o_wb_ack,
-    output [31:0] o_wb_data
+    output [WB_DATA_WIDTH-1:0] o_wb_data
 );
 
     reg r_ack;
 
-    assign o_wb_data = 32'hDEADBEEF;
+    assign o_wb_data = DUMMY_VALUE;
     assign o_wb_stall = 1'b0;
     assign o_wb_ack = r_ack;
 
