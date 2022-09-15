@@ -37,6 +37,7 @@ V_MODULES := \
 	$(SRC_DIR)/dac8551.v \
 	$(SRC_DIR)/ft245sync.v \
 	$(SRC_DIR)/stream_buf.v \
+	$(SRC_DIR)/word_ser.v \
 	$(SRC_DIR)/syncfifo.v \
 	$(SRC_DIR)/crc8.v \
 	$(SRC_DIR)/fastcounter.v \
@@ -113,6 +114,8 @@ V_MODULES += \
 # Tests
 TESTS := \
 	test_syncfifo \
+	test_stream_buf \
+	test_word_ser \
 	test_wbcon_exec \
 	test_wbcon_tx \
 	test_wbcon_rx \
