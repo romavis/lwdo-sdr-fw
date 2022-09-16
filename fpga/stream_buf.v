@@ -31,7 +31,7 @@ module stream_buf (
     assign o_valid = buf_valid;
     assign o_ready = buf_ready && (!buf_overflown);
 
-    always @(posedge i_clk) begin
+    always @(posedge i_clk or posedge i_rst) begin
         if (i_rst) begin
 
             buf_data <= 8'b0;
@@ -43,7 +43,7 @@ module stream_buf (
         end else begin
             // Buffer ready signal
             buf_ready <= i_ready | (~buf_valid);
-            
+
             if (up_transfer_ok) begin
                 // Buffer data, set valid and overflow flags
                 buf_data_ovfl <= buf_data;

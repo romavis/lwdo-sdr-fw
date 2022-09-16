@@ -19,9 +19,9 @@ module ft245sync (
 
     // FPGA interface
     output o_clk,   // system clock for this clock domain
-    // Synchronous reset
+    // Asynchronous reset
     input i_rst,
-    
+
     // Data output (FPGA->FTDI)
     // Stream protocol, transfer happens when both valid and ready are 1'b1 @(posedge o_clk)
     input [7:0] i_tx_data,
@@ -52,10 +52,15 @@ module ft245sync (
     //
     reg r_pin_txe_n;
     reg r_pin_rxf_n;
-    always @(posedge clk) begin
-        r_pin_txe_n <= i_pin_txe_n;
-        r_pin_rxf_n <= i_pin_rxf_n;
-    end
+
+    always @(posedge clk or posedge rst)
+        if (rst) begin
+            r_pin_txe_n <= 1'b1;
+            r_pin_rxf_n <= 1'b1;
+        end else begin
+            r_pin_txe_n <= i_pin_txe_n;
+            r_pin_rxf_n <= i_pin_rxf_n;
+        end
 
     //
     // State machine
@@ -70,7 +75,7 @@ module ft245sync (
     localparam ST_SWITCH_RX2TX = 2'd2;
     localparam ST_SWITCH_TX2RX = 2'd3;
 
-    always @(posedge clk) begin
+    always @(posedge clk or posedge rst) begin
         if (rst) begin
             state <= ST_SWITCH_RX2TX;   // initialize to transmit mode
         end else begin
@@ -103,7 +108,7 @@ module ft245sync (
 
         ST_SWITCH_RX2TX: state_next = ST_TX;
         ST_SWITCH_TX2RX: state_next = ST_RX;
-        
+
         endcase
     end
 
