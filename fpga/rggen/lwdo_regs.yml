@@ -1,6 +1,10 @@
+# NOTE NOTE NOTE
+# All addresses here are _byte_ addresses.
+# In LWDO-SDR design, Wishbone addresses are _word_ addresses.
+
 register_blocks:
   - name: lwdo_regs # this is the name of generated verilog module
-    byte_size: 1024  # up to 256 * 32-bit registers
+    byte_size: 512  # up to 256 * 16-bit registers
 
     register_files:
     # ------------------------------------------------------
@@ -10,15 +14,63 @@ register_blocks:
       offset_address: 0x00
 
       registers:
-      - name: magic
+      - name: magic1
         comment: "Read-only magic value"
         bit_fields:
-        - { name: magic,        bit_assignment: { width: 32 },  type: rof,    initial_value: 0x4F44574C } # 'LWDO' ascii chars
+        - { name: magic,        bit_assignment: { width: 16 },  type: rof,    initial_value: 0x574C } # 'LW'
+
+      - name: magic2
+        comment: "Read-only magic value"
+        bit_fields:
+        - { name: magic,        bit_assignment: { width: 16 },  type: rof,    initial_value: 0x4F44 } # 'DO'
 
       - name: con
         comment: "System-level control bits"
         bit_fields:
         - { name: sys_rst,      bit_assignment: { width: 1 },   type: w1,     initial_value: 0, comment: "write 1 to perform complete system reset" }
+
+      - name: test1
+        bit_fields:
+        - { name: magic,
+            bit_assignment: { width: 16 },
+            type: rof,
+            initial_value: 0xFFff }
+
+      - name: test2
+        bit_fields:
+        - { name: magic,
+            bit_assignment: { width: 16 },
+            type: rof,
+            initial_value: 0x0000 }
+
+      - name: test3
+        bit_fields:
+        - { name: magic,
+            bit_assignment: { width: 16 },
+            type: rof,
+            initial_value: 0xAAaa }
+
+      - name: test4
+        bit_fields:
+        - { name: magic,
+            bit_assignment: { width: 16 },
+            type: rof,
+            initial_value: 0xaa55 }
+
+      - name: test5
+        bit_fields:
+        - { name: magic,
+            bit_assignment: { width: 16 },
+            type: rof,
+            initial_value: 0x55aa }
+
+      - name: test6
+        bit_fields:
+        - { name: magic,
+            bit_assignment: { width: 16 },
+            type: rof,
+            initial_value: 0x5555 }
+
 
     # ------------------------------------------------------
     #     ADCT - analog-to-digital converter timing
@@ -79,7 +131,7 @@ register_blocks:
         bit_fields:
         - name: val
           comment: "Clock frequency division factor for pulse generator 1. fPULS1=fSRATE1/(val+1)"
-          bit_assignment: { width: 23 }
+          bit_assignment: { width: 16 }
           type: rw
           initial_value: 0
 
@@ -88,7 +140,7 @@ register_blocks:
         bit_fields:
         - name: val
           comment: "Clock frequency division factor for pulse generator 2. fPULS2=fSRATE2/(val+1)"
-          bit_assignment: { width: 23 }
+          bit_assignment: { width: 16 }
           type: rw
           initial_value: 0
 
@@ -129,7 +181,7 @@ register_blocks:
           initial_value: 1
 
     # ------------------------------------------------------
-    #   ADC - analog-to-digital converter control and data
+    #   ADC - analog-to-digital converter control
     # ------------------------------------------------------
     - name: adc
       offset_address: 0x80
@@ -211,22 +263,6 @@ register_blocks:
           bit_assignment: { width: 1 }
           type: rotrg
 
-      - name: fifo1_port
-        comment: "ADC1 FIFO data port"
-        bit_fields:
-        - name: data
-          comment: "Data word. Bits layout: {1'b0, puls1, adc1_data_b[13:0], 1'b0, puls1, adc1_data_a[13:0]}"
-          bit_assignment: { width: 32 }
-          type: rotrg
-
-      - name: fifo2_port
-        comment: "ADC2 FIFO data port"
-        bit_fields:
-        - name: data
-          comment: "Data word. Bits layout: {1'b0, puls2, adc2_data_b[13:0], 1'b0, puls2, adc2_data_a[13:0]}"
-          bit_assignment: { width: 32 }
-          type: rotrg
-
     # ------------------------------------------------------
     #   FTUN - frequency oscillator tuning
     # ------------------------------------------------------
@@ -241,7 +277,7 @@ register_blocks:
         bit_fields:
         - name: val
           comment: "VCTCXO DAC setting (linear scale, higher value -> higher frequency)"
-          bit_assignment: { lsb: 16, width: 16 }
+          bit_assignment: { lsb: 0, width: 16 }
           type: rwtrg
           initial_value: 0x8000
 
@@ -249,19 +285,19 @@ register_blocks:
     #   DUMMY - dummy registers
     # ------------------------------------------------------
     - name: dummy
-      offset_address: 0x3F0
+      offset_address: 0x1F0
       comment: "Dummy RW registers, not connected anywhere"
 
       registers:
       - name: dummy1
         bit_fields:
         - name: val
-          bit_assignment: { width: 32 }
+          bit_assignment: { width: 16 }
           type: rw
           initial_value: 0
       - name: dummy2
         bit_fields:
         - name: val
-          bit_assignment: { width: 32 }
+          bit_assignment: { width: 16 }
           type: rw
           initial_value: 0

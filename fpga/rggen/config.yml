@@ -1,4 +1,4 @@
-bus_width:      32
-address_width:  10
+bus_width:      16
+address_width:  9   # byte address: word_address_bits + log2(bus_width / 8)
 protocol:       wishbone
 

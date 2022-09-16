@@ -46,8 +46,6 @@ module top (
     inout [7:0] p_ft_fifo_d
 );
 
-    `include "mreq_defines.vh"
-
     // ===============================================================================================================
     // =========================                                                             =========================
     // =========================                        CLOCK GENERATION                     =========================
@@ -66,12 +64,13 @@ module top (
     SB_PLL40_CORE #(
         .FEEDBACK_PATH("SIMPLE"),
 		.DIVR(4'd0),
-		.DIVF(7'd31),
+		.DIVF(7'd63),
 		.DIVQ(3'd3),
-		.FILTER_RANGE(3'd2),
+		.FILTER_RANGE(3'd3),
         .PLLOUT_SELECT("GENCLK")
     ) adc_pll (
-        .REFERENCECLK (p_clk_20mhz_gbin1),  // 20 MHz
+        //.REFERENCECLK (p_clk_20mhz_gbin1),  // 20 MHz
+        .REFERENCECLK (p_clk_ref_in),  // CLK_IN SMA
         .PLLOUTCORE (adc_pll_out),
         .LOCK (adc_pll_lock),
         .RESETB(1'b1),
@@ -381,10 +380,12 @@ module top (
 
     // ADC1
     wire adc1_fifo_empty, adc1_fifo_full, adc1_fifo_hfull, adc1_fifo_ovfl, adc1_fifo_udfl;
-    wire [31:0] adc1_fifo_data;
-    wire adc1_fifo_rd;
-
+    // in stream: adc1_str
     assign adc1_str_ready = !adc1_fifo_full;
+    // out stream: adc1_wstr
+    wire [31:0] adc1_wstr_data;
+    wire adc1_wstr_valid = !adc1_fifo_empty;
+    wire adc1_wstr_ready;
 
     syncfifo #(
         .ADDR_WIDTH(ADC_FIFO_ASIZE),
@@ -394,10 +395,10 @@ module top (
         .i_rst(sys_rst),
         // data
         .i_data(adc1_str_data),
-        .o_data(adc1_fifo_data),
+        .o_data(adc1_wstr_data),
         // control
-        .i_wr(adc1_str_valid),
-        .i_rd(adc1_fifo_rd),
+        .i_wr(adc1_str_valid & adc1_str_ready),
+        .i_rd(adc1_wstr_valid & adc1_wstr_ready),
         // status
         .o_empty(adc1_fifo_empty),
         .o_full(adc1_fifo_full),
@@ -421,10 +422,12 @@ module top (
 
     // ADC2
     wire adc2_fifo_empty, adc2_fifo_full, adc2_fifo_hfull, adc2_fifo_ovfl, adc2_fifo_udfl;
-    wire [31:0] adc2_fifo_data;
-    wire adc2_fifo_rd;
-
+    // in stream: adc2_str
     assign adc2_str_ready = !adc2_fifo_full;
+    // out stream: adc2_wstr
+    wire [31:0] adc2_wstr_data;
+    wire adc2_wstr_valid = !adc2_fifo_empty;
+    wire adc2_wstr_ready;
 
     syncfifo #(
         .ADDR_WIDTH(ADC_FIFO_ASIZE),
@@ -434,10 +437,10 @@ module top (
         .i_rst(sys_rst),
         // data
         .i_data(adc2_str_data),
-        .o_data(adc2_fifo_data),
+        .o_data(adc2_wstr_data),
         // control
-        .i_wr(adc2_str_valid),
-        .i_rd(adc2_fifo_rd),
+        .i_wr(adc2_str_valid & adc2_str_ready),
+        .i_rd(adc2_wstr_valid & adc2_wstr_ready),
         // status
         .o_empty(adc2_fifo_empty),
         .o_full(adc2_fifo_full),
@@ -460,44 +463,48 @@ module top (
     end
 
     // -----------------------------------------------
-    // EMREQ valid/ready state machine for ADC fifos
+    // Word-to-byte ADC stream converters
     // -----------------------------------------------
 
-    // ADC1
-    reg adc1_emreq_valid;
-    wire adc1_emreq_ready;
+    // ADC1 byte stream
+    wire [7:0] adc1_bstr_data;
+    wire adc1_bstr_valid;
+    wire adc1_bstr_ready;
 
-    always @(posedge sys_clk) begin
-        if (sys_rst) begin
-            adc1_emreq_valid <= 1'b0;
-        end else begin
-            if (adc1_fifo_hfull) begin
-                adc1_emreq_valid <= 1'b1;
-            end else begin
-                if (adc1_emreq_ready) begin
-                    adc1_emreq_valid <= 1'b0;
-                end
-            end
-        end
-    end
+    word_ser #(
+        .WORD_BITS(32)
+    ) adc1_word_ser (
+        .i_clk(sys_clk),
+        .i_rst(sys_rst),
+        //
+        .i_data(adc1_wstr_data),
+        .i_valid(adc1_wstr_valid),
+        .o_ready(adc1_wstr_ready),
+        //
+        .o_data(adc1_bstr_data),
+        .o_valid(adc1_bstr_valid),
+        .i_ready(adc1_bstr_ready)
+    );
 
-    // ADC2
-    reg adc2_emreq_valid;
-    wire adc2_emreq_ready;
+    // ADC2 byte stream
+    wire [7:0] adc2_bstr_data;
+    wire adc2_bstr_valid;
+    wire adc2_bstr_ready;
 
-    always @(posedge sys_clk) begin
-        if (sys_rst) begin
-            adc2_emreq_valid <= 1'b0;
-        end else begin
-            if (adc2_fifo_hfull) begin
-                adc2_emreq_valid <= 1'b1;
-            end else begin
-                if (adc2_emreq_ready) begin
-                    adc2_emreq_valid <= 1'b0;
-                end
-            end
-        end
-    end
+    word_ser #(
+        .WORD_BITS(32)
+    ) adc2_word_ser (
+        .i_clk(sys_clk),
+        .i_rst(sys_rst),
+        //
+        .i_data(adc2_wstr_data),
+        .i_valid(adc2_wstr_valid),
+        .o_ready(adc2_wstr_ready),
+        //
+        .o_data(adc2_bstr_data),
+        .o_valid(adc2_bstr_valid),
+        .i_ready(adc2_bstr_ready)
+    );
 
     // ------------------------
     // DAC driver
@@ -518,22 +525,14 @@ module top (
         .o_dac_mosi(p_spi_dac_mosi)
     );
 
-    // -------------------------------------------
-    // FTDI SyncFIFO streams (in sys_clk domain)
-    // -------------------------------------------
-
-    wire [7:0] sys_ft_rx_data;
-    wire sys_ft_rx_valid;
-    wire sys_ft_rx_ready;
-    wire [7:0] sys_ft_tx_data;
-    wire sys_ft_tx_valid;
-    wire sys_ft_tx_ready;
-
     // ------------------------
     // Wishbone bus
     // ------------------------
 
     localparam WB_ADDR_WIDTH = 8;
+    localparam WB_DATA_WIDTH = 16;
+    localparam WB_SEL_WIDTH = 2;
+    localparam WB_BYTE_ADDR_BITS = $clog2((WB_DATA_WIDTH + 7) / 8);
 
     // Wishbone master - control port - bus
     wire wbm_cp_cyc;
@@ -542,21 +541,30 @@ module top (
     wire wbm_cp_ack;
     wire wbm_cp_we;
     wire [WB_ADDR_WIDTH-1:0] wbm_cp_addr;
-    wire [31:0] wbm_cp_wdata;
-    wire [3:0] wbm_cp_sel;
-    wire [31:0] wbm_cp_rdata;
+    wire [WB_DATA_WIDTH-1:0] wbm_cp_wdata;
+    wire [WB_SEL_WIDTH-1:0] wbm_cp_sel;
+    wire [WB_DATA_WIDTH-1:0] wbm_cp_rdata;
+
+    // Wishbone port Rx command stream (incoming data)
+    wire [7:0] wbcon_rx_data;
+    wire wbcon_rx_valid;
+    wire wbcon_rx_ready;
+    // Wishbone port Tx command stream (outgoing data)
+    wire [7:0] wbcon_tx_data;
+    wire wbcon_tx_valid;
+    wire wbcon_tx_ready;
 
     // ------------------------
     // Wishbone master: control port
     // ------------------------
-    wb_ctrl_port #(
+    wbcon #(
         .WB_ADDR_WIDTH(WB_ADDR_WIDTH),
-        .NUM_EMREQS(1)
-    ) wb_ctrl_port_i (
+        .WB_DATA_WIDTH(WB_DATA_WIDTH),
+        .WB_SEL_WIDTH(WB_SEL_WIDTH),
+        .COUNT_WIDTH(8)
+    ) wbcon_i (
         .i_clk(sys_clk),
         .i_rst(sys_rst),
-        // status
-        // .o_err_crc(err_crc),
         // wb
         .o_wb_cyc(wbm_cp_cyc),
         .o_wb_stb(wbm_cp_stb),
@@ -568,17 +576,13 @@ module top (
         .o_wb_sel(wbm_cp_sel),
         .i_wb_data(wbm_cp_rdata),
         // rx
-        .o_rx_ready(sys_ft_rx_ready),
-        .i_rx_data(sys_ft_rx_data),
-        .i_rx_valid(sys_ft_rx_valid),
+        .i_rx_data(wbcon_rx_data),
+        .i_rx_valid(wbcon_rx_valid),
+        .o_rx_ready(wbcon_rx_ready),
         // tx
-        .i_tx_ready(sys_ft_tx_ready),
-        .o_tx_data(sys_ft_tx_data),
-        .o_tx_valid(sys_ft_tx_valid),
-        // TODO: EMREQs
-        .i_emreqs_valid(adc1_emreq_valid),
-        .o_emreqs_ready(adc1_emreq_ready),
-        .i_emreqs(pack_mreq(8'h01, 1'b0, 1'b0, MREQ_WFMT_32S0, 8'hFF, 24'h000080))
+        .o_tx_data(wbcon_tx_data),
+        .o_tx_valid(wbcon_tx_valid),
+        .i_tx_ready(wbcon_tx_ready)
     );
 
     // --------------------------------------
@@ -586,7 +590,7 @@ module top (
     // --------------------------------------
 
     lwdo_regs #(
-        .ADDRESS_WIDTH(WB_ADDR_WIDTH+2),
+        .ADDRESS_WIDTH(WB_ADDR_WIDTH+WB_BYTE_ADDR_BITS),
         .DEFAULT_READ_DATA(32'hDEADBEEF)
     ) lwdo_regs_i (
         // SYSCON
@@ -597,7 +601,7 @@ module top (
         .i_wb_cyc(wbm_cp_cyc),
         .i_wb_stb(wbm_cp_stb),
         .o_wb_stall(wbm_cp_stall),
-        .i_wb_adr({wbm_cp_addr, 2'b0}),
+        .i_wb_adr({wbm_cp_addr, {WB_BYTE_ADDR_BITS{1'b0}}}),
         .i_wb_we(wbm_cp_we),
         .i_wb_dat(wbm_cp_wdata),
         .i_wb_sel(wbm_cp_sel),
@@ -619,7 +623,10 @@ module top (
         .o_adct_puls2_dly_val(csr_adct_puls2_dly),
         .o_adct_puls1_pwidth_val(csr_adct_puls1_pwidth),
         .o_adct_puls2_pwidth_val(csr_adct_puls2_pwidth),
-        // REGS: ADC1
+        // REGS: ADC CON
+        .o_adc_con_adc1_en(csr_adc_adc1_en),
+        .o_adc_con_adc2_en(csr_adc_adc2_en),
+        // REGS: ADC FIFO1
         .i_adc_fifo1_sts_empty(adc1_fifo_empty),
         .i_adc_fifo1_sts_full(adc1_fifo_full),
         .i_adc_fifo1_sts_hfull(adc1_fifo_hfull),
@@ -627,9 +634,7 @@ module top (
         .o_adc_fifo1_sts_ovfl_read_trigger(adc1_fifo_ovfl_lclr),
         .i_adc_fifo1_sts_udfl(adc1_fifo_udfl_lval),
         .o_adc_fifo1_sts_udfl_read_trigger(adc1_fifo_udfl_lclr),
-        .i_adc_fifo1_port_data(adc1_fifo_data),
-        .o_adc_fifo1_port_data_read_trigger(adc1_fifo_rd),
-        // REGS: ADC2
+        // REGS: ADC FIFO2
         .i_adc_fifo2_sts_empty(adc2_fifo_empty),
         .i_adc_fifo2_sts_full(adc2_fifo_full),
         .i_adc_fifo2_sts_hfull(adc2_fifo_hfull),
@@ -637,11 +642,65 @@ module top (
         .o_adc_fifo2_sts_ovfl_read_trigger(adc2_fifo_ovfl_lclr),
         .i_adc_fifo2_sts_udfl(adc2_fifo_udfl_lval),
         .o_adc_fifo2_sts_udfl_read_trigger(adc2_fifo_udfl_lclr),
-        .i_adc_fifo2_port_data(adc2_fifo_data),
-        .o_adc_fifo2_port_data_read_trigger(adc2_fifo_rd),
         // REGS: FTUN
         .o_ftun_vtune_set_val(csr_ftun_vtune_val),
         .o_ftun_vtune_set_val_write_trigger(csr_ftun_vtune_write)
+    );
+
+    // -------------------------------------------
+    // FTDI SyncFIFO streams (in sys_clk domain)
+    // -------------------------------------------
+
+    wire [7:0] sys_ft_rx_data;
+    wire sys_ft_rx_valid;
+    wire sys_ft_rx_ready;
+    wire [7:0] sys_ft_tx_data;
+    wire sys_ft_tx_valid;
+    wire sys_ft_tx_ready;
+
+    // ----------------------------------
+    // Control port stream management
+    // ----------------------------------
+
+    wire cpstr_send_stridx;
+
+    cpstr_mgr_rx cpstr_mgr_rx (
+        .i_clk(sys_clk),
+        .i_rst(sys_rst),
+        //
+        .i_data(sys_ft_rx_data),
+        .i_valid(sys_ft_rx_valid),
+        .o_ready(sys_ft_rx_ready),
+        //
+        .o_data(wbcon_rx_data),
+        .o_valid(wbcon_rx_valid),
+        .i_ready(wbcon_rx_ready),
+        //
+        .o_send_stridx(cpstr_send_stridx)
+    );
+
+
+    // Index allocation for multiplexed Tx streams:
+    //  0 - control port (wbcon_tx)
+    //  1 - ADC1 data stream
+    //  2 - ADC2 data stream
+
+    cpstr_mgr_tx #(
+        .NUM_STREAMS(3),
+        .MAX_BURST(32)
+    ) cpstr_mgr_tx (
+        .i_clk(sys_clk),
+        .i_rst(sys_rst),
+        //
+        .o_data(sys_ft_tx_data),
+        .o_valid(sys_ft_tx_valid),
+        .i_ready(sys_ft_tx_ready),
+        //
+        .i_data({adc2_bstr_data, adc1_bstr_data, wbcon_tx_data}),
+        .i_valid({adc2_bstr_valid, adc1_bstr_valid, wbcon_tx_valid}),
+        .o_ready({adc2_bstr_ready, adc1_bstr_ready, wbcon_tx_ready}),
+        //
+        .i_send_stridx(cpstr_send_stridx)
     );
 
     // ===============================================================================================================
@@ -663,20 +722,14 @@ module top (
 
     // Reset asserted on:
     //  - FPGA reconfiguration (power on)
-    //  - Asynchronously when ft_rst_req goes high
+    //  - Asynchronously when sys_rst goes high
     // Reset deasserted on:
-    //  - First ft_clk cycle when ft_rst_req is low
+    //  - First ft_clk cycle when sys_rst is low
     reg ft_rst = 1'b1;
-    wire ft_rst_req;
 
-    // Asynchronously assert FT reset when sys_rst is asserted
-    assign ft_rst_req = sys_rst;
-
-    always @(posedge ft_clk or posedge ft_rst_req) begin
+    always @(posedge ft_clk or posedge sys_rst) begin
         ft_rst <= 1'b0;
-        if (ft_rst_req) begin
-            ft_rst <= 1'b1;
-        end
+        if (sys_rst) ft_rst <= 1'b1;
     end
 
     // ------------------------
@@ -814,7 +867,7 @@ module top (
     // CLK OUT
     // ------------------------
     assign p_clk_out_sel = 1'b1;
-    assign p_clk_out = ~adc1_fifo_full;
+    assign p_clk_out = ~(adc1_fifo_full | adc2_fifo_full); //sys_clk;
 
     // ------------------------
     // LEDs
@@ -830,9 +883,9 @@ module top (
     // assign p_led_in3_g = 0;
     // assign p_led_in4_r = ~p_ft_fifo_txe_n;
     // assign p_led_in4_g = 0;
-    assign p_led_in3_r = adc1_emreq_valid;
-    assign p_led_in3_g = adct_puls1_w;
-    assign p_led_in4_r = adc1_emreq_ready;
+    assign p_led_in3_r = adc_pll_lock;
+    assign p_led_in3_g = 0;
+    assign p_led_in4_r = adct_puls1_w;
     assign p_led_in4_g = adct_puls2_w;
 
 
