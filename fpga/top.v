@@ -141,7 +141,7 @@ module top (
         .i_en(csr_adct_srate1_en),
         .i_load(1'b0),
         .i_load_q(csr_adct_srate1_psc_div),
-        .o_carry(adct_srate1)
+        .o_carry_dly(adct_srate1)
     );
 
     fastcounter #(
@@ -153,7 +153,7 @@ module top (
         .i_en(csr_adct_srate2_en),
         .i_load(1'b0),
         .i_load_q(csr_adct_srate2_psc_div),
-        .o_carry(adct_srate2)
+        .o_carry_dly(adct_srate2)
     );
 
     //  Timing pulse generators
@@ -182,7 +182,7 @@ module top (
         .i_en(adct_srate1 & csr_adct_puls1_en),
         .i_load(1'b0),
         .i_load_q(csr_adct_puls1_psc_div),
-        .o_carry(adct_puls1)
+        .o_carry_dly(adct_puls1)
     );
 
     fastcounter #(
@@ -194,7 +194,7 @@ module top (
         .i_en(adct_srate2 & csr_adct_puls2_en),
         .i_load(1'b0),
         .i_load_q(csr_adct_puls2_psc_div),
-        .o_carry(adct_puls2)
+        .o_carry_dly(adct_puls2)
     );
 
     // Pulse micro-delay (delay is in adc_clk periods, max delay is up to 2x adc_srate periods)
@@ -296,20 +296,23 @@ module top (
     // ADC timing pulse latches
     // -------------------------
 
-    // Here we latch adct_puls1/2 on adc1/2_start pulse (start of conversion),
-    // so that it can be read later on adc1/2_rdy pulse (end of conversion)
+    // This synchronizes adct_puls1/2 with adc1/2_rdy
     reg adc1_puls, adc2_puls;
-    always @(posedge sys_clk) begin
+    always @(posedge sys_clk or posedge sys_rst)
         if (sys_rst) begin
             adc1_puls <= 1'b0;
             adc2_puls <= 1'b0;
         end else begin
-            if (adc1_start)
-                adc1_puls <= adct_puls1;
-            if (adc2_start)
-                adc2_puls <= adct_puls2;
+            if (adc1_rdy)
+                adc1_puls <= 1'b0;
+            else if (adct_puls1)
+                adc1_puls <= 1'b1;
+            //
+            if (adc2_rdy)
+                adc2_puls <= 1'b0;
+            else if (adct_puls2)
+                adc2_puls <= 1'b1;
         end
-    end
 
     // ------------------
     // ADC data streams
@@ -694,15 +697,36 @@ module top (
         .i_clk(sys_clk),
         .i_rst(sys_rst),
         //
-        .o_data(sys_ft_tx_data),
-        .o_valid(sys_ft_tx_valid),
-        .i_ready(sys_ft_tx_ready),
+        .o_data(cpstr_tx_buf_data),
+        .o_valid(cpstr_tx_buf_valid),
+        .i_ready(cpstr_tx_buf_ready),
         //
         .i_data({adc2_bstr_data, adc1_bstr_data, wbcon_tx_data}),
         .i_valid({adc2_bstr_valid, adc1_bstr_valid, wbcon_tx_valid}),
         .o_ready({adc2_bstr_ready, adc1_bstr_ready, wbcon_tx_ready}),
         //
         .i_send_stridx(cpstr_send_stridx)
+    );
+
+    // ---------------------------------------
+    // Buffer Tx stream to improve timing
+    // ---------------------------------------
+
+    wire [7:0] cpstr_tx_buf_data;
+    wire cpstr_tx_buf_valid;
+    wire cpstr_tx_buf_ready;
+
+    stream_buf cpstr_tx_buf (
+        .i_clk(sys_clk),
+        .i_rst(sys_rst),
+        //
+        .o_data(sys_ft_tx_data),
+        .o_valid(sys_ft_tx_valid),
+        .i_ready(sys_ft_tx_ready),
+        //
+        .i_data(cpstr_tx_buf_data),
+        .i_valid(cpstr_tx_buf_valid),
+        .o_ready(cpstr_tx_buf_ready)
     );
 
     // ===============================================================================================================
