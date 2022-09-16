@@ -38,7 +38,7 @@ module top (
     // FTDI FIFO
     input p_ft_fifo_clkout,
     output p_ft_fifo_oe_n,
-    output p_ft_fifo_siwu,
+    output p_ft_fifo_siwu_n,
     output p_ft_fifo_wr_n,
     output p_ft_fifo_rd_n,
     input p_ft_fifo_txe_n,
@@ -777,7 +777,7 @@ module top (
         // pins
         .i_pin_clkout(p_ft_fifo_clkout),
         .o_pin_oe_n(p_ft_fifo_oe_n),
-        .o_pin_siwu(p_ft_fifo_siwu),
+        .o_pin_siwu_n(p_ft_fifo_siwu_n),
         .o_pin_wr_n(p_ft_fifo_wr_n),
         .o_pin_rd_n(p_ft_fifo_rd_n),
         .i_pin_rxf_n(p_ft_fifo_rxf_n),

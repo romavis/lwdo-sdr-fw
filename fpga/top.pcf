@@ -56,7 +56,7 @@ set_io p_ft_io2 63
 # FTDI FIFO
 set_io p_ft_fifo_oe_n 73
 set_io p_ft_fifo_clkout 74
-set_io p_ft_fifo_siwu 75
+set_io p_ft_fifo_siwu_n 75
 set_io p_ft_fifo_wr_n 76
 set_io p_ft_fifo_rd_n 78
 set_io p_ft_fifo_txe_n 79

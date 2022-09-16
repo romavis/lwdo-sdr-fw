@@ -8,7 +8,7 @@ module ft245sync (
     // FTDI interface pins
     input i_pin_clkout,
     output o_pin_oe_n,
-    output o_pin_siwu,
+    output o_pin_siwu_n,
     output o_pin_wr_n,
     output o_pin_rd_n,
     input i_pin_txe_n, // if nTXE = 0, there is space available in TX buffer
@@ -131,9 +131,9 @@ module ft245sync (
     assign ftdi_rx_valid = (state == ST_RX) && (i_pin_rxf_n == 1'b0) && (r_pin_rxf_n == 1'b0);
 
     //
-    // SIWU: TBD
+    // SIWU: unused (deasserted)
     //
-    assign o_pin_siwu = 1'b1;
+    assign o_pin_siwu_n = 1'b1;
 
     // debug
     assign o_dbg[0] = state[0];
