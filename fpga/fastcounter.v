@@ -13,7 +13,7 @@ module fastcounter_stage_ #(
     reg [NBITS-1:0] count;
     reg zero;   // registered carry signal
 
-    always @(posedge i_clk) begin
+    always @(posedge i_clk or posedge i_rst) begin
         if (i_rst) begin
             count <= {NBITS{1'b0}};
             zero <= 1'b1;
@@ -39,9 +39,9 @@ module fastcounter #(
     parameter NBITS_STAGE = 9   // default value good for iCE40
 ) (
     input i_clk,                // clock
-    input i_rst,                // synchronous reset
+    input i_rst,                // assynchronous reset
     //
-    input i_en,                 // enable input 
+    input i_en,                 // enable input
     input i_mode,               // mode: 0 - autoreload, 1 - oneshot
     input [NBITS-1:0] i_load_q, // counter load value
     input i_load,               // synchronous counter load (when i_load=1, i_en is ignored)
@@ -49,6 +49,7 @@ module fastcounter #(
     output o_zero,              // counter is 0
     output o_nzero,             // counter is not 0
     output o_carry,             // carry pulse
+    output o_carry_dly,         // delayed carry pulse
     output o_zpulse,            // zero pulse
     //
     output [NBITS-1:0] o_q      // counter value output
@@ -83,6 +84,8 @@ module fastcounter #(
         o_carry
             carry flag
             is 1 when o_q is zero, i_en=1, and counter is not in oneshot mode
+        o_carry_dly
+            o_carry delayed by 1 i_clk cycle (use to improve timings)
         o_zpulse
             1 clk wide pulse generated when counter value, which was non-zero, becomes zero
             except when counter is reset via i_rst
@@ -108,7 +111,7 @@ module fastcounter #(
                 set to 0
             i_load_q
                 set to DIV_RATIO-1, where DIV_RATIO is the desired frequency division ratio
-            o_carry
+            o_carry, o_carry_dly
                 output of prescaler:
                     when DIV_RATIO>1: 1x i_clk wide pulses, one pulse per DIV_RATIO x i_clk or i_en pulses
                     when DIV_RATIO=1: o_carry is a copy of i_en
@@ -145,7 +148,7 @@ module fastcounter #(
             o_zpulse
                 Produces pulse that is delayed w.r.t. cycle of i_load==1 by NCOUNT+1
                 count clocks
-            o_carry
+            o_carry, o_carry_dly
                 not used
 
     *****************************************************************************************************************/
@@ -156,7 +159,7 @@ module fastcounter #(
 
     localparam NSTAGES = ((NBITS + NBITS_STAGE - 1) / NBITS_STAGE); // ceil
     localparam NLBITS = NBITS - (NSTAGES-1) * NBITS_STAGE;
- 
+
     genvar ii;
 
     // ZERO outputs of all stages
@@ -166,9 +169,12 @@ module fastcounter #(
 
     // Shaped load pulse for oneshot mode
     reg load_dly;
-    always @(posedge i_clk) begin
-        load_dly <= i_load; 
-    end
+    always @(posedge i_clk or posedge i_rst)
+        if (i_rst)
+            load_dly <= 1'b0;
+        else
+            load_dly <= i_load;
+
     wire load_1clk;
     assign load_1clk = i_load && !load_dly;
 
@@ -182,6 +188,16 @@ module fastcounter #(
 
     // Carry output logic
     assign o_carry = st_en[NSTAGES-1] && st_zero[NSTAGES-1];
+
+    // Delayed carry generator
+    reg carry_dly;
+    always @(posedge i_clk or posedge i_rst)
+        if (i_rst)
+            carry_dly <= 1'b0;
+        else
+            carry_dly <= o_carry;
+
+    assign o_carry_dly = carry_dly;
 
     // Zero logic
     assign o_zero = & st_zero;    // all stages should be zero
@@ -205,13 +221,13 @@ module fastcounter #(
 
     // zpulse generator
     reg zero_dly;
-    always @(posedge i_clk) begin
+    always @(posedge i_clk or posedge i_rst) begin
         if (i_rst) begin
             zero_dly <= 1'b1;
         end else if (load) begin
             zero_dly <= 1'b0;
         end else begin
-            zero_dly <= o_zero; 
+            zero_dly <= o_zero;
         end
     end
 
