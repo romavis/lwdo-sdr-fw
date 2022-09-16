@@ -53,13 +53,13 @@ module top (
     // ===============================================================================================================
 
     // ------------------------------------------
-    //                  ADC PLL
+    //                  SYS PLL
     //
     // input: 20MHz
     // output: 80MHz
     // ------------------------------------------
-    wire adc_pll_out;
-    wire adc_pll_lock;
+    wire sys_pll_out;
+    wire sys_pll_lock;
 
     SB_PLL40_CORE #(
         .FEEDBACK_PATH("SIMPLE"),
@@ -71,14 +71,14 @@ module top (
     ) adc_pll (
         //.REFERENCECLK (p_clk_20mhz_gbin1),  // 20 MHz
         .REFERENCECLK (p_clk_ref_in),  // CLK_IN SMA
-        .PLLOUTCORE (adc_pll_out),
-        .LOCK (adc_pll_lock),
+        .PLLOUTCORE (sys_pll_out),
+        .LOCK (sys_pll_lock),
         .RESETB(1'b1),
         .BYPASS(1'b0)
     );
 
     // Output PLL clock on the pin
-    assign p_adc_sclk = adc_pll_out;
+    assign p_adc_sclk = sys_pll_out;
 
 
     // ===============================================================================================================
@@ -98,20 +98,22 @@ module top (
     // System reset generator
     // --------------------------------------------------
 
-    // Reset asserted on:
-    //  - FPGA reconfiguration (power on)
-    //  - Asynchronously when sys_rst_req goes high
-    // Reset deasserted on:
-    //  - First sys_clk cycle when sys_rst_req is low
-    reg sys_rst = 1'b1;
-    wire sys_rst_req;
+    // sys_rst is async assert, sync de-assert
+    // Asserted on / by:
+    //  1. FPGA initialization
+    //  2. PLL "not locked" condition
+    //  3. csr_sys_rst CSR bit
 
-    always @(posedge sys_clk or posedge sys_rst_req) begin
-        sys_rst <= 1'b0;
-        if (sys_rst_req) begin
-            sys_rst <= 1'b1;
-        end
-    end
+    wire sys_rst;
+    wire csr_sys_rst;
+
+    rst_bridge #(
+        .INITIAL_VAL(1'b1)
+    ) sys_rst_gen (
+        .clk(sys_clk),
+        .rst((~sys_pll_lock) | csr_sys_rst),
+        .out(sys_rst)
+    );
 
     // --------------------------------------------------
     //      ADCT - ADC timing generators
@@ -609,7 +611,7 @@ module top (
         .o_wb_dat(wbm_cp_rdata),
 
         // REGS: SYS
-        .o_sys_con_sys_rst(sys_rst_req),
+        .o_sys_con_sys_rst(csr_sys_rst),
         // REGS: ADCT
         .o_adct_con_srate1_en(csr_adct_srate1_en),
         .o_adct_con_srate2_en(csr_adct_srate2_en),
@@ -720,17 +722,20 @@ module top (
     // FTDI domain reset generator
     // ----------------------------
 
-    // Reset asserted on:
-    //  - FPGA reconfiguration (power on)
-    //  - Asynchronously when sys_rst goes high
-    // Reset deasserted on:
-    //  - First ft_clk cycle when sys_rst is low
-    reg ft_rst = 1'b1;
+    // ft_rst is async assert, sync de-assert
+    // Asserted on / by:
+    //  1. FPGA initialization
+    //  2. sys_rst
 
-    always @(posedge ft_clk or posedge sys_rst) begin
-        ft_rst <= 1'b0;
-        if (sys_rst) ft_rst <= 1'b1;
-    end
+    wire ft_rst;
+
+    rst_bridge #(
+        .INITIAL_VAL(1'b1)
+    ) ft_rst_gen (
+        .clk(ft_clk),
+        .rst(sys_rst),
+        .out(ft_rst)
+    );
 
     // ------------------------
     // FTDI SyncFIFO bidirectional data bus
@@ -883,7 +888,7 @@ module top (
     // assign p_led_in3_g = 0;
     // assign p_led_in4_r = ~p_ft_fifo_txe_n;
     // assign p_led_in4_g = 0;
-    assign p_led_in3_r = adc_pll_lock;
+    assign p_led_in3_r = sys_pll_lock;
     assign p_led_in3_g = 0;
     assign p_led_in4_r = adct_puls1_w;
     assign p_led_in4_g = adct_puls2_w;
