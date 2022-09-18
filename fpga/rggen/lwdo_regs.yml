@@ -14,63 +14,65 @@ register_blocks:
       offset_address: 0x00
 
       registers:
-      - name: magic1
+      - name: magic
         comment: "Read-only magic value"
         bit_fields:
-        - { name: magic,        bit_assignment: { width: 16 },  type: rof,    initial_value: 0x574C } # 'LW'
-
-      - name: magic2
-        comment: "Read-only magic value"
-        bit_fields:
-        - { name: magic,        bit_assignment: { width: 16 },  type: rof,    initial_value: 0x4F44 } # 'DO'
+        - name: magic
+          bit_assignment: { width: 32 }
+          type: rof
+          initial_value: 0x4544574C # 'LWDO'
 
       - name: con
         comment: "System-level control bits"
         bit_fields:
-        - { name: sys_rst,      bit_assignment: { width: 1 },   type: w1,     initial_value: 0, comment: "write 1 to perform complete system reset" }
+        - name: sys_rst
+          comment: "write 1 to perform complete system reset"
+          bit_assignment: { width: 1 }
+          type: w1
+          initial_value: 0
 
-      - name: test1
+    # ------------------------------------------------------
+    #                 PDET - phase detector
+    # ------------------------------------------------------
+    - name: pdet
+      offset_address: 0x20
+
+      registers:
+      - name: con
+        comment: "Phase detector control"
+
         bit_fields:
-        - { name: magic,
-            bit_assignment: { width: 16 },
-            type: rof,
-            initial_value: 0xFFff }
+        - name: en
+          comment: "Enable phase detector"
+          bit_assignment: { width: 1 }
+          type: rw
+          initial_value: 0
 
-      - name: test2
+        - name: eclk2_slow
+          comment: "ECLK2 is slow (1Hz ~ 10Hz). If set, N2 divider is bypassed and fTIC2=fECLK2"
+          bit_assignment: { width: 1 }
+          type: rw
+          initial_value: 0
+
+      - name: n1
+        comment: "N1 divider"
+
         bit_fields:
-        - { name: magic,
-            bit_assignment: { width: 16 },
-            type: rof,
-            initial_value: 0x0000 }
+        - name: val
+          comment: "Clock frequency division factor for N1 divider. fTIC1=fECLK1/(2*(val+1))"
+          bit_assignment: { width: 32 }
+          type: rof
+          initial_value: { default: 0 }
 
-      - name: test3
+      - name: n2
+        comment: "N2 divider"
+
         bit_fields:
-        - { name: magic,
-            bit_assignment: { width: 16 },
-            type: rof,
-            initial_value: 0xAAaa }
-
-      - name: test4
-        bit_fields:
-        - { name: magic,
-            bit_assignment: { width: 16 },
-            type: rof,
-            initial_value: 0xaa55 }
-
-      - name: test5
-        bit_fields:
-        - { name: magic,
-            bit_assignment: { width: 16 },
-            type: rof,
-            initial_value: 0x55aa }
-
-      - name: test6
-        bit_fields:
-        - { name: magic,
-            bit_assignment: { width: 16 },
-            type: rof,
-            initial_value: 0x5555 }
-
+        - name: val
+          comment: "Clock frequency division factor for N2 divider. fTIC2=fECLK2/(2*(val+1))"
+          bit_assignment: { width: 32 }
+          type: rof
+          initial_value: { default: 0 }
 
     # ------------------------------------------------------
     #     ADCT - analog-to-digital converter timing
@@ -131,7 +133,7 @@ register_blocks:
         bit_fields:
         - name: val
           comment: "Clock frequency division factor for pulse generator 1. fPULS1=fSRATE1/(val+1)"
-          bit_assignment: { width: 16 }
+          bit_assignment: { width: 23 }
           type: rw
           initial_value: 0
 
@@ -140,7 +142,7 @@ register_blocks:
         bit_fields:
         - name: val
           comment: "Clock frequency division factor for pulse generator 2. fPULS2=fSRATE2/(val+1)"
-          bit_assignment: { width: 16 }
+          bit_assignment: { width: 23 }
           type: rw
           initial_value: 0
 
@@ -282,22 +284,44 @@ register_blocks:
           initial_value: 0x8000
 
     # ------------------------------------------------------
-    #   DUMMY - dummy registers
+    #   TEST - test registers
     # ------------------------------------------------------
-    - name: dummy
+    - name: test
       offset_address: 0x1F0
-      comment: "Dummy RW registers, not connected anywhere"
+      comment: "Registers allocated for test purposes"
 
       registers:
-      - name: dummy1
+      - name: rw1
         bit_fields:
         - name: val
           bit_assignment: { width: 16 }
           type: rw
           initial_value: 0
-      - name: dummy2
+
+      - name: ro1
         bit_fields:
         - name: val
           bit_assignment: { width: 16 }
-          type: rw
-          initial_value: 0
+          type: rof
+          initial_value: 0xFFff
+
+      - name: ro2
+        bit_fields:
+        - name: val
+          bit_assignment: { width: 16 }
+          type: rof
+          initial_value: 0x0000
+
+      - name: ro3
+        bit_fields:
+        - name: val
+          bit_assignment: { width: 32 }
+          type: rof
+          initial_value: 0xAAaaAA55
+
+      - name: ro4
+        bit_fields:
+        - name: val
+          bit_assignment: { width: 32 }
+          type: rof
+          initial_value: 0x55aa5555

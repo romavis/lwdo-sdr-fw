@@ -68,7 +68,7 @@ module top (
 		.DIVQ(3'd3),
 		.FILTER_RANGE(3'd3),
         .PLLOUT_SELECT("GENCLK")
-    ) adc_pll (
+    ) sys_pll (
         //.REFERENCECLK (p_clk_20mhz_gbin1),  // 20 MHz
         .REFERENCECLK (p_clk_ref_in),  // CLK_IN SMA
         .PLLOUTCORE (sys_pll_out),
@@ -539,6 +539,87 @@ module top (
     );
 
     // ------------------------
+    // Phase detector
+    // ------------------------
+
+    // ECLK1: 20 MHz onboard clock
+    // ECLK2: CLK_IN connector
+    // CLK: sys_clk (80MHz)
+
+    // N1=99999 results in max comparison frequency of 100 Hz
+    // Returned measurement range is 0 to 800000 ( f(sys_clk)/100 )
+    // 20 bits is enough for that range
+    //
+    // N2=49999 allows best performance with 10MHz external reference,
+    // while 1,2,5,20 MHz can also be used
+
+    localparam PDET_BITS = 20;
+    localparam PDET_N1 = 99_999;
+    localparam PDET_N2 = 49_999;
+
+    wire csr_pdet_en;
+    wire csr_pdet_eclk2_slow;
+    wire [PDET_BITS-1:0] pdet_count;
+    wire pdet_count_rdy;
+
+    phase_det #(
+        .TIC_BITS(PDET_BITS),
+        .DIV_N1(PDET_N1),
+        .DIV_N2(PDET_N2)
+    ) pdet (
+        .i_clk(sys_clk),
+        .i_rst(sys_rst),
+        //
+        .i_en(csr_pdet_en),
+        .i_eclk2_slow(csr_pdet_eclk2_slow),
+        //
+        .o_count(pdet_count),
+        .o_count_rdy(pdet_count_rdy),
+        //
+        .i_eclk1(p_clk_20mhz_gbin1),
+        .i_eclk2(p_clk_ref_in)
+    );
+
+    // Stream interface
+    reg [31:0] pdet_wstr_data;
+    reg pdet_wstr_valid;
+    wire pdet_wstr_ready;
+
+    always @(posedge sys_clk or posedge sys_rst)
+        if (sys_rst) begin
+            pdet_wstr_data <= 32'b0;
+            pdet_wstr_valid <= 1'b0;
+        end else begin
+            if (pdet_count_rdy) begin
+                pdet_wstr_valid <= 1'b1;
+                pdet_wstr_data <= 32'd0;
+                pdet_wstr_data[PDET_BITS-1:0] <= pdet_count;
+            end else if (pdet_wstr_ready) begin
+                pdet_wstr_valid <= 1'b0;
+            end
+        end
+
+    // Byte serializer
+    wire [7:0] pdet_bstr_data;
+    wire pdet_bstr_valid;
+    wire pdet_bstr_ready;
+
+    word_ser #(
+        .WORD_BITS(32)
+    ) pdet_word_ser (
+        .i_clk(sys_clk),
+        .i_rst(sys_rst),
+        //
+        .i_data(pdet_wstr_data),
+        .i_valid(pdet_wstr_valid),
+        .o_ready(pdet_wstr_ready),
+        //
+        .o_data(pdet_bstr_data),
+        .o_valid(pdet_bstr_valid),
+        .i_ready(pdet_bstr_ready)
+    );
+
+    // ------------------------
     // Wishbone bus
     // ------------------------
 
@@ -604,7 +685,9 @@ module top (
 
     lwdo_regs #(
         .ADDRESS_WIDTH(WB_ADDR_WIDTH+WB_BYTE_ADDR_BITS),
-        .DEFAULT_READ_DATA(32'hDEADBEEF)
+        .DEFAULT_READ_DATA(16'hDEAD),
+        .PDET_N1_VAL_INITIAL_VALUE(PDET_N1),
+        .PDET_N2_VAL_INITIAL_VALUE(PDET_N2)
     ) lwdo_regs_i (
         // SYSCON
         .i_clk(sys_clk),
@@ -623,6 +706,9 @@ module top (
 
         // REGS: SYS
         .o_sys_con_sys_rst(csr_sys_rst),
+        // REGS: PDET
+        .o_pdet_con_en(csr_pdet_en),
+        .o_pdet_con_eclk2_slow(csr_pdet_eclk2_slow),
         // REGS: ADCT
         .o_adct_con_srate1_en(csr_adct_srate1_en),
         .o_adct_con_srate2_en(csr_adct_srate2_en),
@@ -697,9 +783,10 @@ module top (
     //  0 - control port (wbcon_tx)
     //  1 - ADC1 data stream
     //  2 - ADC2 data stream
+    //  3 - Phase detector measurement
 
     cpstr_mgr_tx #(
-        .NUM_STREAMS(3),
+        .NUM_STREAMS(4),
         .MAX_BURST(32)
     ) cpstr_mgr_tx (
         .i_clk(sys_clk),
@@ -709,9 +796,21 @@ module top (
         .o_valid(cpstr_tx_buf_valid),
         .i_ready(cpstr_tx_buf_ready),
         //
-        .i_data({adc2_bstr_data, adc1_bstr_data, wbcon_tx_data}),
-        .i_valid({adc2_bstr_valid, adc1_bstr_valid, wbcon_tx_valid}),
-        .o_ready({adc2_bstr_ready, adc1_bstr_ready, wbcon_tx_ready}),
+        .i_data({
+            pdet_bstr_data,
+            adc2_bstr_data,
+            adc1_bstr_data,
+            wbcon_tx_data}),
+        .i_valid({
+            pdet_bstr_valid,
+            adc2_bstr_valid,
+            adc1_bstr_valid,
+            wbcon_tx_valid}),
+        .o_ready({
+            pdet_bstr_ready,
+            adc2_bstr_ready,
+            adc1_bstr_ready,
+            wbcon_tx_ready}),
         //
         .i_send_stridx(cpstr_send_stridx)
     );

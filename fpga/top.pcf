@@ -87,7 +87,6 @@ set_io p_qspi_io3 61
 # Input clock pins
 set_frequency p_clk_20mhz_gbin1         20
 set_frequency p_clk_20mhz_gbin2         20
+set_frequency p_clk_ref_in              20
 set_frequency p_adc_sclk_gbin           80
 set_frequency p_ft_fifo_clkout          60
-# PLL output nets
-set_frequency sys_pll_out               80

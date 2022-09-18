@@ -116,8 +116,8 @@ Measurement result is Tx expressed `i_clk` cycles:
 
 module phase_det #(
     parameter TIC_BITS = 20,
-    parameter DIV_N1 = 1000,
-    parameter DIV_N2 = 1000
+    parameter DIV_N1 = 999, // div by 1000 (default)
+    parameter DIV_N2 = 999  // div by 1000 (default)
 ) (
     // system clock domain
     input i_clk,
@@ -133,8 +133,8 @@ module phase_det #(
     input i_eclk2
 );
 
-    localparam BITS_N1 = (DIV_N1 >= 2) ? $clog2(DIV_N1) : 1;
-    localparam BITS_N2 = (DIV_N2 >= 2) ? $clog2(DIV_N2) : 1;
+    localparam BITS_N1 = (DIV_N1 >= 1) ? $clog2(DIV_N1 + 1) : 1;
+    localparam BITS_N2 = (DIV_N2 >= 1) ? $clog2(DIV_N2 + 1) : 1;
 
     wire clk = i_clk;
     wire rst = i_rst;
