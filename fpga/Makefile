@@ -49,6 +49,7 @@ V_MODULES += \
 	$(SRC_DIR)/modules/dac8551.v \
 	$(SRC_DIR)/modules/fastcounter.v \
 	$(SRC_DIR)/modules/ft245sync.v \
+	$(SRC_DIR)/modules/phase_det.v \
 	$(SRC_DIR)/modules/rr_arbiter.v \
 	$(SRC_DIR)/modules/rst_bridge.v \
 	$(SRC_DIR)/modules/stream_buf.v \
@@ -116,6 +117,7 @@ TESTS := \
 	test_dac8551 \
 	test_fastcounter \
 	test_lwdo_regs \
+	test_phase_det \
 	test_stream_buf \
 	test_syncfifo \
 	test_wbcon_exec \
