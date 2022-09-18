@@ -161,8 +161,16 @@ $(OUT_TEST_DIR)/test_%.vcd: $(OUT_TEST_DIR)/test_%
 # Synthesis
 $(OUT_DIR)/top.json: $(V_MODULES)
 	yosys \
-		-f 'verilog $(foreach path,$(V_INCLUDE_PATHS),-I $(path))' \
-		-p 'synth_ice40 -top $(PROJ) -json $@' \
+		-f "verilog $(foreach path,$(V_INCLUDE_PATHS),-I $(path))" \
+		-p "\
+			read_verilog -D ICE40_HX -lib -specify +/ice40/cells_sim.v;\
+			hierarchy -check -top $(PROJ);\
+			flatten;\
+			proc;\
+			opt -full;\
+			opt_clean -purge;\
+			synth_ice40 -run coarse: -json $@;\
+			"\
 		$^
 
 # Place-and-route
