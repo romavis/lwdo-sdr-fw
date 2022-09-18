@@ -526,12 +526,20 @@ module top (
     wire csr_ftun_vtune_write;
     wire [15:0] csr_ftun_vtune_val;
 
+    // Initiate DAC write upon reset
+    reg dac_init;
+    always @(posedge sys_clk or posedge sys_rst)
+        if (sys_rst)
+            dac_init <= 1'b1;
+        else
+            dac_init <= 1'b0;
+
     dac8551 #(
         .CLK_DIV(20)
     ) dac8551_i (
         .i_clk(sys_clk),
         .i_rst(sys_rst),
-        .i_wr(csr_ftun_vtune_write),
+        .i_wr(csr_ftun_vtune_write || dac_init),
         .i_wr_data({8'b0, csr_ftun_vtune_val}),
         .o_dac_sclk(p_spi_dac_sclk),
         .o_dac_sync_n(p_spi_dac_sync_n),
