@@ -137,7 +137,8 @@ module top (
     ) adct_srate1_psc (
         .i_clk(sys_clk),
         .i_rst(sys_rst),
-        .i_mode(1'b0),      // AUTORELOAD
+        .i_mode(2'd0),      // AUTORELOAD
+        .i_dir(1'b0),       // DOWN
         .i_en(csr_adct_srate1_en),
         .i_load(1'b0),
         .i_load_q(csr_adct_srate1_psc_div),
@@ -149,7 +150,8 @@ module top (
     ) adct_srate2_psc (
         .i_clk(sys_clk),
         .i_rst(sys_rst),
-        .i_mode(1'b0),      // AUTORELOAD
+        .i_mode(2'd0),      // AUTORELOAD
+        .i_dir(1'b0),       // DOWN
         .i_en(csr_adct_srate2_en),
         .i_load(1'b0),
         .i_load_q(csr_adct_srate2_psc_div),
@@ -178,7 +180,8 @@ module top (
     ) adct_puls1_psc (
         .i_clk(sys_clk),
         .i_rst(sys_rst),
-        .i_mode(1'b0),      // AUTORELOAD
+        .i_mode(2'd0),      // AUTORELOAD
+        .i_dir(1'b0),       // DOWN
         .i_en(adct_srate1 & csr_adct_puls1_en),
         .i_load(1'b0),
         .i_load_q(csr_adct_puls1_psc_div),
@@ -190,7 +193,8 @@ module top (
     ) adct_puls2_psc (
         .i_clk(sys_clk),
         .i_rst(sys_rst),
-        .i_mode(1'b0),      // AUTORELOAD
+        .i_mode(2'd0),      // AUTORELOAD
+        .i_dir(1'b0),       // DOWN
         .i_en(adct_srate2 & csr_adct_puls2_en),
         .i_load(1'b0),
         .i_load_q(csr_adct_puls2_psc_div),
@@ -203,11 +207,12 @@ module top (
     ) adct_puls1_dly (
         .i_clk(sys_clk),
         .i_rst(sys_rst),
-        .i_mode(1'b1),      // ONESHOT
+        .i_mode(2'd1),      // ONESHOT
+        .i_dir(1'b0),       // DOWN
         .i_en(1'b1),
         .i_load(adct_puls1),
         .i_load_q(csr_adct_puls1_dly),
-        .o_zpulse(adct_puls1_d)
+        .o_epulse(adct_puls1_d)
     );
 
     fastcounter #(
@@ -215,11 +220,12 @@ module top (
     ) adct_puls2_dly (
         .i_clk(sys_clk),
         .i_rst(sys_rst),
-        .i_mode(1'b1),      // ONESHOT
+        .i_mode(2'd1),      // ONESHOT
+        .i_dir(1'b0),       // DOWN
         .i_en(1'b1),
         .i_load(adct_puls2),
         .i_load_q(csr_adct_puls2_dly),
-        .o_zpulse(adct_puls2_d)
+        .o_epulse(adct_puls2_d)
     );
 
     // Pulse width formers (width specified in adc_srate periods)
@@ -228,11 +234,12 @@ module top (
     ) adct_puls1_fmr (
         .i_clk(sys_clk),
         .i_rst(sys_rst),
-        .i_mode(1'b1),      // ONESHOT
+        .i_mode(2'd1),      // ONESHOT
+        .i_dir(1'b0),       // DOWN
         .i_en(adct_srate1),
         .i_load(adct_puls1_d),
         .i_load_q(csr_adct_puls1_pwidth),
-        .o_nzero(adct_puls1_w)
+        .o_nend(adct_puls1_w)
     );
 
     fastcounter #(
@@ -240,11 +247,12 @@ module top (
     ) adct_puls2_fmr (
         .i_clk(sys_clk),
         .i_rst(sys_rst),
-        .i_mode(1'b1),      // ONESHOT
+        .i_mode(2'd1),      // ONESHOT
+        .i_dir(1'b0),       // DOWN
         .i_en(adct_srate2),
         .i_load(adct_puls2_d),
         .i_load_q(csr_adct_puls2_pwidth),
-        .o_nzero(adct_puls2_w)
+        .o_nend(adct_puls2_w)
     );
 
     // --------------------------------------------------
