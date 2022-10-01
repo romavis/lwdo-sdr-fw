@@ -57,16 +57,24 @@ module top (
     //
     // input: 20MHz
     // output: 80MHz
+    // (determined by parameters below)
     // ------------------------------------------
+
+    // PLL params configured here & made available via read-only CSRs
+    localparam [3:0] SYS_PLL_DIVR = 4'd0;
+    localparam [6:0] SYS_PLL_DIVF = 7'd63;
+    localparam [2:0] SYS_PLL_DIVQ = 3'd3;
+    localparam [2:0] SYS_PLL_FILTER_RANGE = 3'd3;
+
     wire sys_pll_out;
     wire sys_pll_lock;
 
     SB_PLL40_CORE #(
         .FEEDBACK_PATH("SIMPLE"),
-		.DIVR(4'd0),
-		.DIVF(7'd63),
-		.DIVQ(3'd3),
-		.FILTER_RANGE(3'd3),
+		.DIVR(SYS_PLL_DIVR),
+		.DIVF(SYS_PLL_DIVF),
+		.DIVQ(SYS_PLL_DIVQ),
+		.FILTER_RANGE(SYS_PLL_FILTER_RANGE),
         .PLLOUT_SELECT("GENCLK")
     ) sys_pll (
         //.REFERENCECLK (p_clk_20mhz_gbin1),  // 20 MHz
@@ -694,6 +702,9 @@ module top (
     lwdo_regs #(
         .ADDRESS_WIDTH(WB_ADDR_WIDTH+WB_BYTE_ADDR_BITS),
         .DEFAULT_READ_DATA(16'hDEAD),
+        .SYS_PLL_DIVR_INITIAL_VALUE(SYS_PLL_DIVR),
+        .SYS_PLL_DIVF_INITIAL_VALUE(SYS_PLL_DIVF),
+        .SYS_PLL_DIVQ_INITIAL_VALUE(SYS_PLL_DIVQ),
         .PDET_N1_VAL_INITIAL_VALUE(PDET_N1),
         .PDET_N2_VAL_INITIAL_VALUE(PDET_N2)
     ) lwdo_regs_i (

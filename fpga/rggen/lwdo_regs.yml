@@ -39,7 +39,7 @@ register_blocks:
           # NOTE
           # This value may be incremented whenever register file is extended
           # in backwards-compatible manner. Reset to 0 when `major` increments.
-          initial_value: 0
+          initial_value: 1
 
       - name: con
         comment: "System-level control bits"
@@ -49,6 +49,22 @@ register_blocks:
           bit_assignment: { width: 1 }
           type: w1
           initial_value: 0
+
+      - name: pll
+        comment: "Read-only PLL configuration bits (for host to compute sys_clk)"
+        bit_fields:
+        - name: divr
+          bit_assignment: { width: 4 }
+          type: rof
+          initial_value: { default: 0 }
+        - name: divf
+          bit_assignment: { width: 7 }
+          type: rof
+          initial_value: { default: 0 }
+        - name: divq
+          bit_assignment: { width: 3 }
+          type: rof
+          initial_value: { default: 0 }
 
     # ------------------------------------------------------
     #                 PDET - phase detector
