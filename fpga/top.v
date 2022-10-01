@@ -27,8 +27,8 @@ module top (
     output p_spi_dac_sclk,
     output p_spi_dac_sync_n,
     // System clocks
-    input p_clk_20mhz_gbin1,
-    input p_clk_20mhz_gbin2,
+    input p_clk_20mhz_gbin1,    // VCTCXO clock, drives SB_PLL40_PAD
+    input p_clk_20mhz_gbin2,    // same VCTCXO clock for non-PLL use
     output p_clk_out,
     input p_clk_ref_in,
     output p_clk_out_sel,
@@ -62,14 +62,14 @@ module top (
 
     // PLL params configured here & made available via read-only CSRs
     localparam [3:0] SYS_PLL_DIVR = 4'd0;
-    localparam [6:0] SYS_PLL_DIVF = 7'd63;
+    localparam [6:0] SYS_PLL_DIVF = 7'd31;
     localparam [2:0] SYS_PLL_DIVQ = 3'd3;
     localparam [2:0] SYS_PLL_FILTER_RANGE = 3'd3;
 
     wire sys_pll_out;
     wire sys_pll_lock;
 
-    SB_PLL40_CORE #(
+    SB_PLL40_PAD #(
         .FEEDBACK_PATH("SIMPLE"),
 		.DIVR(SYS_PLL_DIVR),
 		.DIVF(SYS_PLL_DIVF),
@@ -77,10 +77,9 @@ module top (
 		.FILTER_RANGE(SYS_PLL_FILTER_RANGE),
         .PLLOUT_SELECT("GENCLK")
     ) sys_pll (
-        //.REFERENCECLK (p_clk_20mhz_gbin1),  // 20 MHz
-        .REFERENCECLK (p_clk_ref_in),  // CLK_IN SMA
-        .PLLOUTCORE (sys_pll_out),
-        .LOCK (sys_pll_lock),
+        .PACKAGEPIN(p_clk_20mhz_gbin1),  // 20 MHz
+        .PLLOUTCORE(sys_pll_out),
+        .LOCK(sys_pll_lock),
         .RESETB(1'b1),
         .BYPASS(1'b0)
     );
@@ -592,7 +591,7 @@ module top (
         .o_count(pdet_count),
         .o_count_rdy(pdet_count_rdy),
         //
-        .i_eclk1(p_clk_20mhz_gbin1),
+        .i_eclk1(p_clk_20mhz_gbin2),
         .i_eclk2(p_clk_ref_in)
     );
 
