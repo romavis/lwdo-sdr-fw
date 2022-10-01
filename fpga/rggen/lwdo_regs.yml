@@ -22,6 +22,25 @@ register_blocks:
           type: rof
           initial_value: 0x4544574C # 'LWDO'
 
+      - name: version
+        comment: "Register file version"
+        bit_fields:
+        - name: major
+          bit_assignment: { width: 16 }
+          type: rof
+          # NOTE!
+          # THIS VALUE MUST BE INCREMENTED EVERY TIME
+          # REGISTERS MAP IS CHANGED IN NON-BACKWARDS-COMPATIBLE MANNER
+          initial_value: 1
+
+        - name: minor
+          bit_assignment: { width: 16 }
+          type: rof
+          # NOTE
+          # This value may be incremented whenever register file is extended
+          # in backwards-compatible manner. Reset to 0 when `major` increments.
+          initial_value: 0
+
       - name: con
         comment: "System-level control bits"
         bit_fields:
