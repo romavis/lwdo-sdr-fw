@@ -30,35 +30,39 @@ all: $(OUT_DIR)/$(PROJ).bin
 
 .SECONDARY:
 
+# Top level
 V_MODULES := \
 	$(SRC_DIR)/top.v \
-	$(SRC_DIR)/rst_bridge.v \
-	$(SRC_DIR)/rr_arbiter.v \
-	$(SRC_DIR)/ad7357if.v \
-	$(SRC_DIR)/dac8551.v \
-	$(SRC_DIR)/ft245sync.v \
-	$(SRC_DIR)/stream_buf.v \
-	$(SRC_DIR)/word_ser.v \
-	$(SRC_DIR)/syncfifo.v \
-	$(SRC_DIR)/crc8.v \
-	$(SRC_DIR)/fastcounter.v \
-	$(SRC_DIR)/wbcon_rx.v \
-	$(SRC_DIR)/wbcon_tx.v \
-	$(SRC_DIR)/wbcon_exec.v \
-	$(SRC_DIR)/wbcon.v \
-	$(SRC_DIR)/wb_mem.v \
-	$(SRC_DIR)/wb_mem_dly.v \
-	$(SRC_DIR)/wb_rxfifo.v \
-	$(SRC_DIR)/wb_dummy.v \
-	$(SRC_DIR)/wb_mux.v \
-	$(SRC_DIR)/cpstr_mgr_rx.v \
-	$(SRC_DIR)/cpstr_mgr_tx.v \
-	$(SRC_DIR)/cpstr_desc.v \
-	$(SRC_DIR)/cpstr_esc.v
-
 
 V_INCLUDE_PATHS := \
 	$(SRC_DIR)
+
+
+# Other custom modules
+# (keep in alphabet order)
+V_MODULES += \
+	$(SRC_DIR)/modules/ad7357if.v \
+	$(SRC_DIR)/modules/cpstr_desc.v \
+	$(SRC_DIR)/modules/cpstr_esc.v \
+	$(SRC_DIR)/modules/cpstr_mgr_rx.v \
+	$(SRC_DIR)/modules/cpstr_mgr_tx.v \
+	$(SRC_DIR)/modules/dac8551.v \
+	$(SRC_DIR)/modules/fastcounter.v \
+	$(SRC_DIR)/modules/ft245sync.v \
+	$(SRC_DIR)/modules/rr_arbiter.v \
+	$(SRC_DIR)/modules/rst_bridge.v \
+	$(SRC_DIR)/modules/stream_buf.v \
+	$(SRC_DIR)/modules/syncfifo.v \
+	$(SRC_DIR)/modules/wb_mem_dly.v \
+	$(SRC_DIR)/modules/wbcon_exec.v \
+	$(SRC_DIR)/modules/wbcon_rx.v \
+	$(SRC_DIR)/modules/wbcon_tx.v \
+	$(SRC_DIR)/modules/wbcon.v \
+	$(SRC_DIR)/modules/word_ser.v
+
+V_INCLUDE_PATHS += \
+	$(SRC_DIR)/modules
+
 
 # 3rdparty verilog modules: async_fifo
 V_MODULES += \
@@ -104,21 +108,21 @@ V_MODULES += \
 	$(RGGEN_OUT)/lwdo_regs.v
 
 # Tests
+# (keep in alphabet order)
 TESTS := \
-	test_syncfifo \
-	test_stream_buf \
-	test_word_ser \
-	test_wbcon_exec \
-	test_wbcon_tx \
-	test_wbcon_rx \
-	test_wbcon \
-	test_wb_rxfifo \
+	test_cpstr_desc \
+	test_cpstr_esc \
+	test_cpstr_mgr_tx \
 	test_dac8551 \
 	test_fastcounter \
 	test_lwdo_regs \
-	test_cpstr_mgr_tx \
-	test_cpstr_desc \
-	test_cpstr_esc
+	test_stream_buf \
+	test_syncfifo \
+	test_wbcon_exec \
+	test_wbcon_rx \
+	test_wbcon_tx \
+	test_wbcon \
+	test_word_ser
 
 # ----------------------------------------------------------------------------
 # Rules
