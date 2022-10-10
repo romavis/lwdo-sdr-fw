@@ -11,7 +11,7 @@ SRC_DIR = .
 TEST_DIR = $(SRC_DIR)/test
 
 RGGEN_SRC = $(SRC_DIR)/rggen
-RGGEN_OUT = $(SRC_DIR)/rggen/out
+RGGEN_OUT = $(OUT_DIR)/rggen
 
 PNRGUI ?= 0
 PROJ = top
