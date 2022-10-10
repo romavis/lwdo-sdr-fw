@@ -72,15 +72,6 @@ V_MODULES += \
 V_INCLUDE_PATHS += \
 	$(SRC_DIR)/3rdparty/async_fifo/src/vlog
 
-# 3rdparty verilog modules: verilog-wishbone
-V_MODULES += \
-	$(SRC_DIR)/3rdparty/verilog-wishbone/rtl/arbiter.v \
-	$(SRC_DIR)/3rdparty/verilog-wishbone/rtl/priority_encoder.v \
-	$(SRC_DIR)/3rdparty/verilog-wishbone/rtl/wb_reg.v
-
-V_INCLUDE_PATHS += \
-	$(SRC_DIR)/3rdparty/verilog-wishbone/rtl
-
 # 3rdparty verilog modules: rggen-verilog-rtl
 RGGEN_VERILOG_RTL_ROOT = $(SRC_DIR)/3rdparty/rggen-verilog-rtl
 
