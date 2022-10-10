@@ -35,6 +35,7 @@ endif
 
 all: \
 	$(OUT_DIR)/$(PROJ).bin \
+	$(OUT_DIR)/$(PROJ).icetime.txt \
 	$(RGGEN_OUT)/lwdo_regs.hpp
 
 .SECONDARY:
@@ -152,7 +153,7 @@ $(OUT_TEST_DIR):
 #	2. Install rggen-verilog plugin (https://github.com/rggen/rggen-verilog)
 #	3. Install rggen-c-header plugin (https://github.com/rggen/rggen-c-header)
 #	4. Make sure that rggen is on your PATH (e.g. `export PATH=$PATH:$HOME/.gem/ruby/<version>/bin`)
-$(RGGEN_OUT)/%.v $(RGGEN_OUT)/%.md: $(RGGEN_INPUTS) $(RGGEN_SRC)/config.yml
+$(RGGEN_OUT)/%.v: $(RGGEN_INPUTS) $(RGGEN_SRC)/config.yml
 	$(RGGEN) --plugin rggen-verilog -c $(RGGEN_SRC)/config.yml -o $(RGGEN_OUT) $(RGGEN_INPUTS)
 
 $(RGGEN_OUT)/%.h: $(RGGEN_INPUTS) $(RGGEN_SRC)/config.yml
@@ -176,12 +177,12 @@ $(OUT_TEST_DIR)/test_%.vcd: $(OUT_TEST_DIR)/test_%
 	cd $(OUT_TEST_DIR); $(abspath $<)
 
 # Synthesis
-$(OUT_DIR)/top.json: $(V_MODULES)
+$(OUT_DIR)/%.json: $(V_MODULES)
 	yosys \
 		-f "verilog $(foreach path,$(V_INCLUDE_PATHS),-I $(path))" \
 		-p "\
 			read_verilog -D ICE40_HX -lib -specify +/ice40/cells_sim.v;\
-			hierarchy -check -top $(PROJ);\
+			hierarchy -check -top $*;\
 			flatten;\
 			proc;\
 			opt -full;\
@@ -197,30 +198,17 @@ $(OUT_DIR)/%.asc: $(OUT_DIR)/%.json $(PIN_DEF)
 		--package $(PACKAGE) \
 		--json $< \
 		--pcf $(PIN_DEF) \
-		--asc $@ \
+		--log $(OUT_DIR)/$*.pnr.txt \
+		--asc $(OUT_DIR)/$*.asc \
 		$(NEXTPNR_FLAGS)
 
 # Bitstream generation
 $(OUT_DIR)/%.bin: $(OUT_DIR)/%.asc
 	icepack -v $< $@
 
-$(OUT_DIR)/%.rpt: $(OUT_DIR)/%.asc
+# Timing report (can differ from nextpnr!)
+$(OUT_DIR)/%.icetime.txt: $(OUT_DIR)/%.asc
 	icetime -d $(DEVICE) -mtr $@ $<
-
-$(OUT_DIR)/%_tb: $(OUT_DIR)/%_tb.v $(SRC_DIR)/%.v
-	iverilog -o $@ $^
-
-$(OUT_DIR)/%_tb.vcd: $(OUT_DIR)/%_tb
-	vvp -N $< +vcd=$@
-
-$(OUT_DIR)/%_syn.v: $(OUT_DIR)/%.blif
-	yosys -p 'read_blif -wideports $^; write_verilog $@'
-
-$(OUT_DIR)/%_syntb: $(OUT_DIR)/%_tb.v $(OUT_DIR)/%_syn.v
-	iverilog -o $@ $^ `yosys-config --datdir/ice40/cells_sim.v`
-
-$(OUT_DIR)/%_syntb.vcd: $(OUT_DIR)/%_syntb
-	vvp -N $< +vcd=$@
 
 clean:
 	rm -f $(foreach test,$(TESTS),$(OUT_TEST_DIR)/$(test).vcd)
