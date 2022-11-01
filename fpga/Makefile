@@ -154,10 +154,10 @@ $(OUT_TEST_DIR):
 #	3. Install rggen-c-header plugin (https://github.com/rggen/rggen-c-header)
 #	4. Make sure that rggen is on your PATH (e.g. `export PATH=$PATH:$HOME/.gem/ruby/<version>/bin`)
 $(RGGEN_OUT)/%.v: $(RGGEN_INPUTS) $(RGGEN_SRC)/config.yml
-	$(RGGEN) --plugin rggen-verilog -c $(RGGEN_SRC)/config.yml -o $(RGGEN_OUT) $(RGGEN_INPUTS)
+	$(RGGEN) --plugin rggen-verilog -c $(RGGEN_SRC)/config.yml --enable verilog -o $(RGGEN_OUT) $(RGGEN_INPUTS)
 
 $(RGGEN_OUT)/%.h: $(RGGEN_INPUTS) $(RGGEN_SRC)/config.yml
-	$(RGGEN) --plugin rggen-c-header -c $(RGGEN_SRC)/config.yml -o $(RGGEN_OUT) $(RGGEN_INPUTS)
+	$(RGGEN) --plugin rggen-c-header -c $(RGGEN_SRC)/config.yml --enable c_header -o $(RGGEN_OUT) $(RGGEN_INPUTS)
 
 $(RGGEN_OUT)/%.hpp: $(RGGEN_OUT)/%.h $(RGGEN_SRC)/gen_cpp_regs.py
 	$(PYTHON) $(RGGEN_SRC)/gen_cpp_regs.py $* $< > $@
