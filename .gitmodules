@@ -1,0 +1,3 @@
+[submodule "fpga/csr/rggen-verilog-rtl"]
+	path = fpga/csr/rggen-verilog-rtl
+	url = https://github.com/rggen/rggen-verilog-rtl.git

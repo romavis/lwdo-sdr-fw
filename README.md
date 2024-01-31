@@ -16,9 +16,7 @@ You'll need following tools to generate FPGA bitstream:
 1. [Yosys](https://github.com/YosysHQ/yosys)
 2. [nextpnr-ice40](https://github.com/YosysHQ/nextpnr)
 3. [icestorm](https://github.com/YosysHQ/icestorm)
-4. [rggen](https://github.com/rggen/rggen)
-5. [rggen-verilog](https://github.com/rggen/rggen-verilog/)
-6. Python 3.6 or above (for C++ register map generation)
+4. Python 3.6 or above (for C++ register map generation)
 
 Run following commands to get it:
 ```
