@@ -54,28 +54,7 @@ $ gtkwave out/test/test_fastcounter.vcd&
 
 # How to - FTDI
 
-Due to simplicity, no build scripts are provided in the repo. You will need **libusb** and **libftdi** with corresponding header files to be installed on your system. Afterwards, if you're on Linux, simply run below command to get the binary:
-```
-$ cd ftdi/
-$ gcc -o prepare_eeprom -lftdi1 prepare_eeprom.c
-```
-
-To flash FTDI EEPROM, first determine VID & PID of your device:
-```
-$ lsusb
-
-# it may return e.g.
-# Bus 001 Device 014: ID 0403:6010 Future Technology Devices International, Ltd FT2232C/D/H Dual UART/FIFO IC
-```
-Then, flash EEPROM as follows:
-```
-$ cd ftdi/
-$ ./prepare_eeprom i:0x0403:0x6010
-```
-
-This operation needs to be done only once after LWDO-SDR PCB has been assembled.
-
-If you need to modify USB device serial number, the only way as of now is to edit it by hand in the source code of EEPROM tool.
+TBD
 
 # Design documentation
 
