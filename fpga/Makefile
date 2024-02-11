@@ -48,9 +48,6 @@ V_INCLUDE_PATHS := \
 # (keep in alphabet order)
 V_MODULES += \
 	$(SRC_DIR)/modules/ad7357if.v \
-	$(SRC_DIR)/modules/cpstr_desc.v \
-	$(SRC_DIR)/modules/cpstr_esc.v \
-	$(SRC_DIR)/modules/cpstr_mgr_rx.v \
 	$(SRC_DIR)/modules/cpstr_mgr_tx.v \
 	$(SRC_DIR)/modules/dac8551.v \
 	$(SRC_DIR)/modules/fastcounter.v \
@@ -58,6 +55,9 @@ V_MODULES += \
 	$(SRC_DIR)/modules/phase_det.v \
 	$(SRC_DIR)/modules/rr_arbiter.v \
 	$(SRC_DIR)/modules/rst_bridge.v \
+	$(SRC_DIR)/modules/slip_escaper.v \
+	$(SRC_DIR)/modules/slip_framer.v \
+	$(SRC_DIR)/modules/slip_unescaper.v \
 	$(SRC_DIR)/modules/stream_buf.v \
 	$(SRC_DIR)/modules/syncfifo.v \
 	$(SRC_DIR)/modules/wb_mem_dly.v \

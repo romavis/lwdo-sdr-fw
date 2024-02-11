@@ -1,6 +1,10 @@
 module cpstr_mgr_tx #(
     parameter NUM_STREAMS = 2,
-    parameter MAX_BURST = 127
+    parameter MAX_BURST = 127,
+    parameter SLIP_SYMBOL_MARK = 8'hC0,
+    parameter SLIP_SYMBOL_ESC = 8'hDB,
+    parameter SLIP_SYMBOL_ESC_MARK = 8'hDC,
+    parameter SLIP_SYMBOL_ESC_ESC = 8'hDD
 ) (
     // syscon
     input i_clk,
@@ -126,7 +130,7 @@ module cpstr_mgr_tx #(
 
     rr_arbiter #(
         .NUM_PORTS(NUM_STREAMS)
-    ) arbiter (
+    ) u_arbiter (
         .clk(i_clk),
         .rst(i_rst),
         //
@@ -140,23 +144,32 @@ module cpstr_mgr_tx #(
     wire stridx_valid = (state == ST_SEND_STREAM_IDX);
     wire stridx_ready;
 
-    // stream escaper
-    // via 'esc' mechanism it sends stream idx that was selected by arbiter
-    cpstr_esc cpstr_esc (
-        .i_clk(clk),
-        .i_rst(rst),
+    // stream framer
+    // it sends stream idx that was selected by arbiter as a 1-byte header
+    // preceded by MARK byte
+    slip_framer #(
+        .SYMBOL_WIDTH(8),
+        .SYMBOL_MARK(SLIP_SYMBOL_MARK),
+        .SYMBOL_ESC(SLIP_SYMBOL_ESC),
+        .SYMBOL_ESC_MARK(SLIP_SYMBOL_ESC_MARK),
+        .SYMBOL_ESC_ESC(SLIP_SYMBOL_ESC_ESC)
+    ) u_slip_framer (
+        .clk(clk),
+        .rst(rst),
         //
-        .i_data(mux_data),
-        .i_valid(mux_valid),
-        .o_ready(mux_ready),
+        .i_dat_data(mux_data),
+        .i_dat_valid(mux_valid),
+        .o_dat_ready(mux_ready),
+        //
+        .i_hdr_data(stridx_val),
+        .i_hdr_last(1'b1),  // header is always 1 byte long
+        .i_hdr_null(1'b0),
+        .i_hdr_valid(stridx_valid),
+        .o_hdr_ready(stridx_ready),
         //
         .o_data(o_data),
         .o_valid(o_valid),
-        .i_ready(i_ready),
-        //
-        .i_esc_data(stridx_val),
-        .i_esc_valid(stridx_valid),
-        .o_esc_ready(stridx_ready)
+        .i_ready(i_ready)
     );
 
 endmodule
