@@ -88,7 +88,7 @@ V_MODULES += \
 	$(CSR_DIR)/generated/lwdo_regs.v
 
 # CSR: rggen-verilog-rtl library 
-RGGEN_VERILOG_RTL_ROOT = $(CSR_DIR)/rggen-verilog-rtl
+RGGEN_VERILOG_RTL_ROOT = $(SRC_DIR)/3rdparty/rggen-verilog-rtl
 
 V_INCLUDE_PATHS += \
 	$(RGGEN_VERILOG_RTL_ROOT)

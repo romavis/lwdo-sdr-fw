@@ -1,3 +1,6 @@
-[submodule "fpga/csr/rggen-verilog-rtl"]
-	path = fpga/csr/rggen-verilog-rtl
-	url = https://github.com/rggen/rggen-verilog-rtl.git
+[submodule "fpga/3rdparty/verilog-axis"]
+	path = fpga/3rdparty/verilog-axis
+	url = https://github.com/romavis/verilog-axis.git
+[submodule "fpga/3rdparty/rggen-verilog-rtl"]
+	path = fpga/3rdparty/rggen-verilog-rtl
+	url = https://github.com/romavis/rggen-verilog-rtl.git
