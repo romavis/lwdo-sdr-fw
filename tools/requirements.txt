@@ -1,0 +1,2 @@
+pyftdi>=0.55.0
+pyspiflash>=0.6.3

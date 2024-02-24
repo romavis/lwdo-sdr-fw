@@ -648,20 +648,19 @@ module top (
     wire wbm_cp_stb;
     wire wbm_cp_stall;
     wire wbm_cp_ack;
+    wire wbm_cp_err;
+    wire wbm_cp_rty;
     wire wbm_cp_we;
-    wire [WB_ADDR_WIDTH-1:0] wbm_cp_addr;
-    wire [WB_DATA_WIDTH-1:0] wbm_cp_wdata;
+    wire [WB_ADDR_WIDTH-1:0] wbm_cp_adr;
+    wire [WB_DATA_WIDTH-1:0] wbm_cp_wdat;
     wire [WB_SEL_WIDTH-1:0] wbm_cp_sel;
-    wire [WB_DATA_WIDTH-1:0] wbm_cp_rdata;
+    wire [WB_DATA_WIDTH-1:0] wbm_cp_rdat;
 
-    // Wishbone port Rx command stream (incoming data)
-    wire [7:0] wbcon_rx_data;
-    wire wbcon_rx_valid;
-    wire wbcon_rx_ready;
     // Wishbone port Tx command stream (outgoing data)
-    wire [7:0] wbcon_tx_data;
-    wire wbcon_tx_valid;
-    wire wbcon_tx_ready;
+    wire wbcon_tx_tvalid;
+    wire wbcon_tx_tready;
+    wire [7:0] wbcon_tx_tdata;
+    wire wbcon_tx_tlast;
 
     // --------------------------------------
     // Wishbone master: control port
@@ -669,8 +668,7 @@ module top (
     wbcon #(
         .WB_ADDR_WIDTH(WB_ADDR_WIDTH),
         .WB_DATA_WIDTH(WB_DATA_WIDTH),
-        .WB_SEL_WIDTH(WB_SEL_WIDTH),
-        .COUNT_WIDTH(8)
+        .WB_SEL_WIDTH(WB_SEL_WIDTH)
     ) wbcon_i (
         .i_clk(sys_clk),
         .i_rst(sys_rst),
@@ -679,19 +677,28 @@ module top (
         .o_wb_stb(wbm_cp_stb),
         .i_wb_stall(wbm_cp_stall),
         .i_wb_ack(wbm_cp_ack),
+        .i_wb_err(wbm_cp_err),
+        .i_wb_rty(wbm_cp_rty),
         .o_wb_we(wbm_cp_we),
-        .o_wb_addr(wbm_cp_addr),
-        .o_wb_data(wbm_cp_wdata),
+        .o_wb_adr(wbm_cp_adr),
+        .o_wb_dat(wbm_cp_wdat),
         .o_wb_sel(wbm_cp_sel),
-        .i_wb_data(wbm_cp_rdata),
+        .i_wb_dat(wbm_cp_rdat),
         // rx
-        .i_rx_data(wbcon_rx_data),
-        .i_rx_valid(wbcon_rx_valid),
-        .o_rx_ready(wbcon_rx_ready),
+        .i_rx_axis_tvalid(cp_rx_tvalid),
+        .o_rx_axis_tready(cp_rx_tready),
+        .i_rx_axis_tdata(cp_rx_tdata),
+        .i_rx_axis_tkeep(cp_rx_tkeep),
+        .i_rx_axis_tlast(cp_rx_tlast),
         // tx
-        .o_tx_data(wbcon_tx_data),
-        .o_tx_valid(wbcon_tx_valid),
-        .i_tx_ready(wbcon_tx_ready)
+        // .o_tx_axis_tvalid(wbcon_tx_tvalid),
+        // .i_tx_axis_tready(wbcon_tx_tready),
+        // .o_tx_axis_tdata(wbcon_tx_tdata),
+        // .o_tx_axis_tlast(wbcon_tx_tlast)
+        .o_tx_axis_tvalid(cp_tx_tvalid),
+        .i_tx_axis_tready(cp_tx_tready),
+        .o_tx_axis_tdata(cp_tx_tdata),
+        .o_tx_axis_tlast(cp_tx_tlast)
     );
 
     // --------------------------------------
@@ -701,6 +708,7 @@ module top (
     lwdo_regs #(
         .ADDRESS_WIDTH(WB_ADDR_WIDTH+WB_BYTE_ADDR_BITS),
         .DEFAULT_READ_DATA(16'hDEAD),
+        .ERROR_STATUS(1),
         .SYS_PLL_DIVR_INITIAL_VALUE(SYS_PLL_DIVR),
         .SYS_PLL_DIVF_INITIAL_VALUE(SYS_PLL_DIVF),
         .SYS_PLL_DIVQ_INITIAL_VALUE(SYS_PLL_DIVQ),
@@ -715,12 +723,14 @@ module top (
         .i_wb_cyc(wbm_cp_cyc),
         .i_wb_stb(wbm_cp_stb),
         .o_wb_stall(wbm_cp_stall),
-        .i_wb_adr({wbm_cp_addr, {WB_BYTE_ADDR_BITS{1'b0}}}),
+        .i_wb_adr({wbm_cp_adr, {WB_BYTE_ADDR_BITS{1'b0}}}),
         .i_wb_we(wbm_cp_we),
-        .i_wb_dat(wbm_cp_wdata),
+        .i_wb_dat(wbm_cp_wdat),
         .i_wb_sel(wbm_cp_sel),
         .o_wb_ack(wbm_cp_ack),
-        .o_wb_dat(wbm_cp_rdata),
+        .o_wb_err(wbm_cp_err),
+        .o_wb_rty(wbm_cp_rty),
+        .o_wb_dat(wbm_cp_rdat),
 
         // REGS: SYS
         .o_sys_con_sys_rst(csr_sys_rst),
@@ -776,78 +786,148 @@ module top (
     wire sys_ft_tx_ready;
 
     // ----------------------------------
-    // Control port stream management
+    // Control port SLIP / AXI-S streams
     // ----------------------------------
 
-    // ---- RX ----
+    wire cp_rx_tvalid;
+    wire cp_rx_tready;
+    wire [7:0] cp_rx_tdata;
+    wire cp_rx_tkeep;
+    wire cp_rx_tlast;
 
-    assign wbcon_rx_data = sys_ft_rx_data;
-    assign wbcon_rx_valid = sys_ft_rx_valid;
-    assign sys_ft_rx_ready = wbcon_rx_ready;
-
-    // ---- TX ----
-
-    // Index allocation for multiplexed Tx streams:
-    //  0 - control port (wbcon_tx)
-    //  1 - ADC1 data stream
-    //  2 - ADC2 data stream
-    //  3 - Phase detector measurement
-
-    // TODO - connect this to CSR?
-    wire cpstr_send_stridx = 1'b0;
-
-    cpstr_mgr_tx #(
-        .NUM_STREAMS(4),
-        .MAX_BURST(32)
-    ) cpstr_mgr_tx (
+    slip_axis_decoder_noid #(
+    ) u_slip_axis_dec (
         .i_clk(sys_clk),
         .i_rst(sys_rst),
         //
-        .o_data(cpstr_tx_buf_data),
-        .o_valid(cpstr_tx_buf_valid),
-        .i_ready(cpstr_tx_buf_ready),
+        .i_s_axis_tvalid(sys_ft_rx_valid),
+        .o_s_axis_tready(sys_ft_rx_ready),
+        .i_s_axis_tdata(sys_ft_rx_data),
         //
-        .i_data({
-            pdet_bstr_data,
-            adc2_bstr_data,
-            adc1_bstr_data,
-            wbcon_tx_data}),
-        .i_valid({
-            pdet_bstr_valid,
-            adc2_bstr_valid,
-            adc1_bstr_valid,
-            wbcon_tx_valid}),
-        .o_ready({
-            pdet_bstr_ready,
-            adc2_bstr_ready,
-            adc1_bstr_ready,
-            wbcon_tx_ready}),
-        //
-        .i_send_stridx(cpstr_send_stridx)
+        .o_m_axis_tvalid(cp_rx_tvalid),
+        .i_m_axis_tready(cp_rx_tready),
+        .o_m_axis_tdata(cp_rx_tdata),
+        .o_m_axis_tkeep(cp_rx_tkeep),
+        .o_m_axis_tlast(cp_rx_tlast)
     );
 
-    // ---------------------------------------
-    // Buffer Tx stream to improve timing
-    // ---------------------------------------
+    wire cp_tx_tvalid;
+    wire cp_tx_tready;
+    wire [7:0] cp_tx_tdata;
+    wire cp_tx_tkeep = 1;
+    wire cp_tx_tlast;
+    wire [7:0] cp_tx_tid = 8'hAA;
 
-    // TODO: review this, it smells
+    slip_axis_encoder #(
+    ) u_slip_axis_enc (
+        .i_clk(sys_clk),
+        .i_rst(sys_rst),
+        //
+        .i_s_axis_tvalid(cp_tx_tvalid),
+        .o_s_axis_tready(cp_tx_tready),
+        .i_s_axis_tdata(cp_tx_tdata),
+        .i_s_axis_tkeep(cp_tx_tkeep),
+        .i_s_axis_tlast(cp_tx_tlast),
+        .i_s_axis_tid(cp_tx_tid),
+        //
+        .o_m_axis_tvalid(sys_ft_tx_valid),
+        .i_m_axis_tready(sys_ft_tx_ready),
+        .o_m_axis_tdata(sys_ft_tx_data)
+    );
+
+    // reg [3:0] dup = 0;
+    // reg [7:0] xd;
+
+    // always @(posedge sys_clk) begin
+    //     if (sys_ft_rx_valid && sys_ft_rx_ready) begin
+    //         xd <= sys_ft_rx_data;
+    //         dup <= 3;
+    //     end else if (sys_ft_tx_valid && sys_ft_tx_ready) begin
+    //         dup <= dup - 1;
+    //     end
+    // end
+
+    // assign sys_ft_tx_data = xd;
+    // assign sys_ft_tx_valid = (dup != 0);
+    // assign sys_ft_rx_ready = (dup == 0);
+
+
+
+    // assign sys_ft_tx_data = sys_ft_rx_data;
+    // assign sys_ft_tx_valid = sys_ft_rx_valid;
+    // assign sys_ft_rx_ready = sys_ft_tx_ready;
+
+
+
+    // // ---- RX ----
+
+    // assign wbcon_rx_data = sys_ft_rx_data;
+    // assign wbcon_rx_valid = sys_ft_rx_valid;
+    // assign sys_ft_rx_ready = wbcon_rx_ready;
+
+    // // ---- TX ----
+
+    // // Index allocation for multiplexed Tx streams:
+    // //  0 - control port (wbcon_tx)
+    // //  1 - ADC1 data stream
+    // //  2 - ADC2 data stream
+    // //  3 - Phase detector measurement
+
+    // // TODO - connect this to CSR?
+    // wire cpstr_send_stridx = 1'b0;
+
+    // cpstr_mgr_tx #(
+    //     .NUM_STREAMS(4),
+    //     .MAX_BURST(32)
+    // ) cpstr_mgr_tx (
+    //     .i_clk(sys_clk),
+    //     .i_rst(sys_rst),
+    //     //
+    //     .o_data(cpstr_tx_buf_data),
+    //     .o_valid(cpstr_tx_buf_valid),
+    //     .i_ready(cpstr_tx_buf_ready),
+    //     //
+    //     .i_data({
+    //         pdet_bstr_data,
+    //         adc2_bstr_data,
+    //         adc1_bstr_data,
+    //         wbcon_tx_data}),
+    //     .i_valid({
+    //         pdet_bstr_valid,
+    //         adc2_bstr_valid,
+    //         adc1_bstr_valid,
+    //         wbcon_tx_valid}),
+    //     .o_ready({
+    //         pdet_bstr_ready,
+    //         adc2_bstr_ready,
+    //         adc1_bstr_ready,
+    //         wbcon_tx_ready}),
+    //     //
+    //     .i_send_stridx(cpstr_send_stridx)
+    // );
+
+    // // ---------------------------------------
+    // // Buffer Tx stream to improve timing
+    // // ---------------------------------------
+
+    // // TODO: review this, it smells
     
-    wire [7:0] cpstr_tx_buf_data;
-    wire cpstr_tx_buf_valid;
-    wire cpstr_tx_buf_ready;
+    // wire [7:0] cpstr_tx_buf_data;
+    // wire cpstr_tx_buf_valid;
+    // wire cpstr_tx_buf_ready;
 
-    stream_buf cpstr_tx_buf (
-        .i_clk(sys_clk),
-        .i_rst(sys_rst),
-        //
-        .o_data(sys_ft_tx_data),
-        .o_valid(sys_ft_tx_valid),
-        .i_ready(sys_ft_tx_ready),
-        //
-        .i_data(cpstr_tx_buf_data),
-        .i_valid(cpstr_tx_buf_valid),
-        .o_ready(cpstr_tx_buf_ready)
-    );
+    // stream_buf cpstr_tx_buf (
+    //     .i_clk(sys_clk),
+    //     .i_rst(sys_rst),
+    //     //
+    //     .o_data(sys_ft_tx_data),
+    //     .o_valid(sys_ft_tx_valid),
+    //     .i_ready(sys_ft_tx_ready),
+    //     //
+    //     .i_data(cpstr_tx_buf_data),
+    //     .i_valid(cpstr_tx_buf_valid),
+    //     .o_ready(cpstr_tx_buf_ready)
+    // );
 
     // ===============================================================================================================
     // =========================                                                             =========================
@@ -914,7 +994,7 @@ module top (
     wire ft_rx_ready;
     wire [3:0] ft_dbg;
 
-    ft245sync ft245sync_i (
+    ft245sync u_ft245sync (
         // SYSCON
         .o_clk(ft_clk),
         .i_rst(ft_rst),
@@ -948,62 +1028,62 @@ module top (
     // ===============================================================================================================
 
     // FIFO size: 256 bytes. That's half of ICE40 4K BRAM, but it improves timing compared to 512.
-    localparam FT_AFIFO_ASIZE = 8;
+    localparam FT_AFIFO_DEPTH = 256;
 
-    // Two asynchronous FIFOs: one for Rx stream, one for Tx stream
-    // NOTE: resets here are asynchronous assert, synchronous release
-
-    // ft_clk domain
-    wire ft_afifo_rx_wfull;
-    wire ft_afifo_tx_rempty;
-    assign ft_rx_ready = !ft_afifo_rx_wfull;
-    assign ft_tx_valid = !ft_afifo_tx_rempty;
-    // sys_clk domain
-    wire ft_afifo_rx_rempty;
-    wire ft_afifo_tx_wfull;
-    assign sys_ft_rx_valid = !ft_afifo_rx_rempty;
-    assign sys_ft_tx_ready = !ft_afifo_tx_wfull;
-
-    async_fifo #(
-        .DSIZE(8),
-        .ASIZE(FT_AFIFO_ASIZE),
-        .FALLTHROUGH("FALSE")
-    ) ft_afifo_rx (
-        //
-        .wclk(ft_clk),
-        .wrst_n(!ft_rst),
-        //
-        .winc(ft_rx_valid && ft_rx_ready),
-        .wdata(ft_rx_data),
-        .wfull(ft_afifo_rx_wfull),
-        //
-        .rclk(sys_clk),
-        .rrst_n(!sys_rst),
-        //
-        .rinc(sys_ft_rx_valid && sys_ft_rx_ready),
-        .rdata(sys_ft_rx_data),
-        .rempty(ft_afifo_rx_rempty)
+    axis_async_fifo #(
+        .DEPTH(FT_AFIFO_DEPTH),
+        .DATA_WIDTH(8),
+        .KEEP_ENABLE(0),
+        .LAST_ENABLE(0),
+        .ID_ENABLE(0),
+        .DEST_ENABLE(0),
+        .USER_ENABLE(0),
+        .RAM_PIPELINE(1),
+        .OUTPUT_FIFO_ENABLE(0),
+        .FRAME_FIFO(0),
+        .PAUSE_ENABLE(0)
+    ) u_ft_afifo_rx (
+        // FTDI domain - slave
+        .s_clk(ft_clk),
+        .s_rst(ft_rst),
+        .s_axis_tdata(ft_rx_data),
+        .s_axis_tvalid(ft_rx_valid),
+        .s_axis_tready(ft_rx_ready),
+        .s_axis_tlast(1'b1),
+        // SYS domain - master
+        .m_clk(sys_clk),
+        .m_rst(sys_rst),
+        .m_axis_tdata(sys_ft_rx_data),
+        .m_axis_tvalid(sys_ft_rx_valid),
+        .m_axis_tready(sys_ft_rx_ready)
     );
 
-    async_fifo #(
-        .DSIZE(8),
-        .ASIZE(FT_AFIFO_ASIZE),
-        .FALLTHROUGH("FALSE")
-    ) ft_afifo_tx (
-        //
-        .wclk(sys_clk),
-        .wrst_n(!sys_rst),
-        //
-        .winc(sys_ft_tx_valid && sys_ft_tx_ready),
-        .wdata(sys_ft_tx_data),
-        .wfull(ft_afifo_tx_wfull),
-        //
-        .rclk(ft_clk),
-        .rrst_n(!ft_rst),
-        //
-        .rinc(ft_tx_valid && ft_tx_ready),
-        .rdata(ft_tx_data),
-        .rempty(ft_afifo_tx_rempty)
+    axis_async_fifo #(
+        .DEPTH(FT_AFIFO_DEPTH),
+        .DATA_WIDTH(8),
+        .KEEP_ENABLE(0),
+        .LAST_ENABLE(0),
+        .ID_ENABLE(0),
+        .DEST_ENABLE(0),
+        .USER_ENABLE(0),
+        .RAM_PIPELINE(1),
+        .OUTPUT_FIFO_ENABLE(0),
+        .FRAME_FIFO(0),
+        .PAUSE_ENABLE(0)
+    ) u_ft_afifo_tx (
+        // SYS domain - slave
+        .s_clk(sys_clk),
+        .s_rst(sys_rst),
+        .s_axis_tdata(sys_ft_tx_data),
+        .s_axis_tvalid(sys_ft_tx_valid),
+        .s_axis_tready(sys_ft_tx_ready),
+        .s_axis_tlast(1'b1),
+        // FTDI domain - master
+        .m_clk(ft_clk),
+        .m_rst(ft_rst),
+        .m_axis_tdata(ft_tx_data),
+        .m_axis_tvalid(ft_tx_valid),
+        .m_axis_tready(ft_tx_ready)
     );
 
     // ===============================================================================================================
@@ -1021,21 +1101,17 @@ module top (
     // ------------------------
     // LEDs
     // ------------------------
-    assign p_led_sts_r = ft_dbg[0];
-    assign p_led_sts_g = ft_dbg[1];
+    assign p_led_sts_r = sys_ft_rx_valid;
+    assign p_led_sts_g = ft_rst;
     //
-    assign p_led_in1_r = ft_tx_valid;   // 0
-    assign p_led_in1_g = ft_tx_ready;   // 1
-    assign p_led_in2_r = ft_rx_valid;   // 1
-    assign p_led_in2_g = ft_rx_ready;   // 0
-    // assign p_led_in3_r = ~p_ft_fifo_rxf_n;
-    // assign p_led_in3_g = 0;
-    // assign p_led_in4_r = ~p_ft_fifo_txe_n;
-    // assign p_led_in4_g = 0;
-    assign p_led_in3_r = sys_pll_lock;
+    assign p_led_in1_r = ft_tx_valid;
+    assign p_led_in1_g = 0;
+    assign p_led_in2_r = ft_tx_ready;
+    assign p_led_in2_g = 0;
+    assign p_led_in3_r = ft_rx_valid;
     assign p_led_in3_g = 0;
-    assign p_led_in4_r = adct_puls1_w;
-    assign p_led_in4_g = adct_puls2_w;
+    assign p_led_in4_r = ft_rx_ready;
+    assign p_led_in4_g = 0;
 
 
 endmodule

@@ -10,7 +10,6 @@ For more info see internal modules: wbcon_rx, wbcon_tx, wbcon_exec.
 ****************************************************************************/
 
 module wbcon #(
-    parameter COUNT_WIDTH = 8,
     parameter WB_ADDR_WIDTH = 24,
     parameter WB_DATA_WIDTH = 32,
     parameter WB_SEL_WIDTH = (WB_DATA_WIDTH + 7) / 8
@@ -19,127 +18,133 @@ module wbcon #(
     input i_clk,
     input i_rst,
     // Rx command stream
-    input [7:0] i_rx_data,
-    input i_rx_valid,
-    output o_rx_ready,
+    input i_rx_axis_tvalid,
+    output o_rx_axis_tready,
+    input [7:0] i_rx_axis_tdata,
+    input i_rx_axis_tkeep,
+    input i_rx_axis_tlast,
     // Tx command stream
-    output [7:0] o_tx_data,
-    output o_tx_valid,
-    input i_tx_ready,
+    output o_tx_axis_tvalid,
+    input i_tx_axis_tready,
+    output [7:0] o_tx_axis_tdata,
+    output o_tx_axis_tlast,
     // Wishbone master
     output o_wb_cyc,
     output o_wb_stb,
     input i_wb_stall,
     input i_wb_ack,
+    input i_wb_err,
+    input i_wb_rty,
     output o_wb_we,
-    output [WB_ADDR_WIDTH-1:0] o_wb_addr,
-    output [WB_DATA_WIDTH-1:0] o_wb_data,
+    output [WB_ADDR_WIDTH-1:0] o_wb_adr,
+    output [WB_DATA_WIDTH-1:0] o_wb_dat,
     output [WB_SEL_WIDTH-1:0] o_wb_sel,
-    input [WB_DATA_WIDTH-1:0] i_wb_data
+    input [WB_DATA_WIDTH-1:0] i_wb_dat
 );
-    // SYSCON
-    wire rst;
-    wire clk;
-    assign rst = i_rst;
-    assign clk = i_clk;
 
-    // WIRING
-    wire [7:0] rx_body_data;
-    wire rx_body_valid;
-    wire rx_body_ready;
+    localparam BYTE_ADDR_WIDTH = $clog2((WB_DATA_WIDTH + 7) / 8);
+    localparam SERIAL_ADDR_WIDTH = WB_ADDR_WIDTH + BYTE_ADDR_WIDTH;
 
-    wire [7:0] tx_body_data;
-    wire tx_body_valid;
-    wire tx_body_ready;
+    // CMD wires
+    wire cmd_tvalid;
+    wire cmd_tready;
+    wire cmd_op_set_address;
+    wire cmd_op_write_word;
+    wire cmd_op_read_word;
+    wire [SERIAL_ADDR_WIDTH-1:0] cmd_hw_addr;
+    wire [WB_DATA_WIDTH-1:0] cmd_hw_data;
 
-    wire [WB_ADDR_WIDTH-1:0] mreq_addr;
-    wire [COUNT_WIDTH-1:0] mreq_cnt;
-    wire mreq_wr;
-    wire mreq_aincr;
+    // CRES wires
+    wire cres_tvalid;
+    wire cres_tready;
+    wire cres_op_set_address;
+    wire cres_op_write_word;
+    wire cres_op_read_word;
+    wire [WB_DATA_WIDTH-1:0] cres_hw_data;
+    wire cres_bus_err;
+    wire cres_bus_rty;
 
-    wire mreq_valid;
-    wire mreq_ready;
-    wire exec_mreq_valid;
-    wire exec_mreq_ready;
-
-    // wbcon_rx
     wbcon_rx #(
-        .ADDR_WIDTH(WB_ADDR_WIDTH),
-        .COUNT_WIDTH(COUNT_WIDTH)
-    ) wbcon_rx (
-        .i_clk(clk),
-        .i_rst(rst),
+        .HW_ADDR_WIDTH(SERIAL_ADDR_WIDTH),
+        .HW_DATA_WIDTH(WB_DATA_WIDTH)
+    ) u_wbcon_rx (
+        .i_clk(i_clk),
+        .i_rst(i_rst),
         //
-        .i_rx_data(i_rx_data),
-        .i_rx_valid(i_rx_valid),
-        .o_rx_ready(o_rx_ready),
+        .i_rx_axis_tvalid(i_rx_axis_tvalid),
+        .o_rx_axis_tready(o_rx_axis_tready),
+        .i_rx_axis_tdata(i_rx_axis_tdata),
+        .i_rx_axis_tkeep(i_rx_axis_tkeep),
+        .i_rx_axis_tlast(i_rx_axis_tlast),
         //
-        .o_body_data(rx_body_data),
-        .o_body_valid(rx_body_valid),
-        .i_body_ready(rx_body_ready),
-        //
-        .o_mreq_valid(mreq_valid),
-        .i_mreq_ready(mreq_ready),
-        .o_mreq_addr(mreq_addr),
-        .o_mreq_cnt(mreq_cnt),
-        .o_mreq_wr(mreq_wr),
-        .o_mreq_aincr(mreq_aincr)
+        .o_cmd_tvalid(cmd_tvalid),
+        .i_cmd_tready(cmd_tready),
+        .o_cmd_op_set_address(cmd_op_set_address),
+        .o_cmd_op_write_word(cmd_op_write_word),
+        .o_cmd_op_read_word(cmd_op_read_word),
+        .o_cmd_hw_addr(cmd_hw_addr),
+        .o_cmd_hw_data(cmd_hw_data)
     );
 
-    // wbcon_tx
-    wbcon_tx wbcon_tx (
-        .i_clk(clk),
-        .i_rst(rst),
+    wbcon_tx #(
+        .HW_DATA_WIDTH(WB_DATA_WIDTH)
+    ) u_wbcon_tx (
+        .i_clk(i_clk),
+        .i_rst(i_rst),
         //
-        .o_tx_data(o_tx_data),
-        .o_tx_valid(o_tx_valid),
-        .i_tx_ready(i_tx_ready),
+        .i_cres_tvalid(cres_tvalid),
+        .o_cres_tready(cres_tready),
+        .i_cres_op_set_address(cres_op_set_address),
+        .i_cres_op_write_word(cres_op_write_word),
+        .i_cres_op_read_word(cres_op_read_word),
+        .i_cres_hw_data(cres_hw_data),
+        .i_cres_bus_err(cres_bus_err),
+        .i_cres_bus_rty(cres_bus_rty),
         //
-        .i_body_data(tx_body_data),
-        .i_body_valid(tx_body_valid),
-        .o_body_ready(tx_body_ready),
-        //
-        .i_mreq_valid(mreq_valid),
-        .o_mreq_ready(mreq_ready),
-        //
-        .o_mreq_valid(exec_mreq_valid),
-        .i_mreq_ready(exec_mreq_ready)
+        .o_tx_axis_tvalid(o_tx_axis_tvalid),
+        .i_tx_axis_tready(i_tx_axis_tready),
+        .o_tx_axis_tdata(o_tx_axis_tdata),
+        .o_tx_axis_tlast(o_tx_axis_tlast)
     );
 
-    // wbcon_exec
     wbcon_exec #(
-        .COUNT_WIDTH(COUNT_WIDTH),
         .WB_ADDR_WIDTH(WB_ADDR_WIDTH),
         .WB_DATA_WIDTH(WB_DATA_WIDTH),
-        .WB_SEL_WIDTH(WB_SEL_WIDTH)
-    ) wbcon_exec (
-        .i_clk(clk),
-        .i_rst(rst),
-        // wb
+        .WB_SEL_WIDTH(WB_SEL_WIDTH),
+        .BYTE_ADDR_WIDTH(BYTE_ADDR_WIDTH),
+        .SERIAL_ADDR_WIDTH(SERIAL_ADDR_WIDTH)
+    ) u_wbcon_exec (
+        .i_clk(i_clk),
+        .i_rst(i_rst),
+        //
         .o_wb_cyc(o_wb_cyc),
         .o_wb_stb(o_wb_stb),
         .i_wb_stall(i_wb_stall),
         .i_wb_ack(i_wb_ack),
+        .i_wb_err(i_wb_err),
+        .i_wb_rty(i_wb_rty),
         .o_wb_we(o_wb_we),
-        .o_wb_addr(o_wb_addr),
-        .o_wb_data(o_wb_data),
+        .o_wb_adr(o_wb_adr),
+        .o_wb_dat(o_wb_dat),
         .o_wb_sel(o_wb_sel),
-        .i_wb_data(i_wb_data),
-        // mreq
-        .i_mreq_valid(exec_mreq_valid),
-        .o_mreq_ready(exec_mreq_ready),
-        .i_mreq_addr(mreq_addr),
-        .i_mreq_cnt(mreq_cnt),
-        .i_mreq_wr(mreq_wr),
-        .i_mreq_aincr(mreq_aincr),
-        // rx
-        .i_rx_data(rx_body_data),
-        .i_rx_valid(rx_body_valid),
-        .o_rx_ready(rx_body_ready),
-        // tx
-        .o_tx_data(tx_body_data),
-        .i_tx_ready(tx_body_ready),
-        .o_tx_valid(tx_body_valid)
+        .i_wb_dat(i_wb_dat),
+        //
+        .i_cmd_tvalid(cmd_tvalid),
+        .o_cmd_tready(cmd_tready),
+        .i_cmd_op_set_address(cmd_op_set_address),
+        .i_cmd_op_write_word(cmd_op_write_word),
+        .i_cmd_op_read_word(cmd_op_read_word),
+        .i_cmd_hw_addr(cmd_hw_addr),
+        .i_cmd_hw_data(cmd_hw_data),
+        //
+        .o_cres_tvalid(cres_tvalid),
+        .i_cres_tready(cres_tready),
+        .o_cres_op_set_address(cres_op_set_address),
+        .o_cres_op_write_word(cres_op_write_word),
+        .o_cres_op_read_word(cres_op_read_word),
+        .o_cres_hw_data(cres_hw_data),
+        .o_cres_bus_err(cres_bus_err),
+        .o_cres_bus_rty(cres_bus_rty)
     );
 
 endmodule

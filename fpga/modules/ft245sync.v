@@ -65,19 +65,19 @@ module ft245sync (
     //
     // State machine
     //
-    reg [1:0] state;
-    reg [1:0] state_next;
-    wire state_change;
-    assign state_change = (state != state_next) ? 1'b1 : 1'b0;
+    reg [2:0] state;
+    reg [2:0] state_next;
 
-    localparam ST_RX = 2'd0;
-    localparam ST_TX = 2'd1;
-    localparam ST_SWITCH_RX2TX = 2'd2;
-    localparam ST_SWITCH_TX2RX = 2'd3;
+    localparam ST_RX = 3'd0;
+    localparam ST_TX = 3'd1;
+    localparam ST_SWITCH_RX2TX1 = 3'd2;
+    localparam ST_SWITCH_RX2TX2 = 3'd3;
+    localparam ST_SWITCH_TX2RX1 = 3'd4;
+    localparam ST_SWITCH_TX2RX2 = 3'd5;
 
     always @(posedge clk or posedge rst) begin
         if (rst) begin
-            state <= ST_SWITCH_RX2TX;   // initialize to transmit mode
+            state <= ST_SWITCH_RX2TX1;   // initialize to transmit mode
         end else begin
             state <= state_next;
         end
@@ -95,19 +95,22 @@ module ft245sync (
         ST_RX: begin
             // If we're not ready to receive data, we want to send some data, and FTDI is ready to receive it, switch to TX
             if (!rx_possible && tx_possible) begin
-                state_next = ST_SWITCH_RX2TX;
+                state_next = ST_SWITCH_RX2TX1;
             end
         end
 
         ST_TX: begin
             // If we're ready to receive data, FTDI has some data for us, switch to RX
             if (rx_possible) begin
-                state_next = ST_SWITCH_TX2RX;
+                state_next = ST_SWITCH_TX2RX1;
             end
         end
 
-        ST_SWITCH_RX2TX: state_next = ST_TX;
-        ST_SWITCH_TX2RX: state_next = ST_RX;
+        ST_SWITCH_RX2TX1: state_next = ST_SWITCH_RX2TX2;
+        ST_SWITCH_RX2TX2: state_next = ST_TX;
+
+        ST_SWITCH_TX2RX1: state_next = ST_SWITCH_TX2RX2;
+        ST_SWITCH_TX2RX2: state_next = ST_RX;
 
         endcase
     end
@@ -115,10 +118,10 @@ module ft245sync (
     //
     // FPGA OE, FTDI OE, RD, WR, DATA drivers
     //
-    assign o_pin_data_oe = (state == ST_TX) ? 1'b1 : 1'b0;
-    assign o_pin_oe_n = (state == ST_RX) ? 1'b0 : 1'b1;
-    assign o_pin_rd_n = ((state == ST_RX) && ftdi_rx_ready && (r_pin_rxf_n == 1'b0)) ? 1'b0 : 1'b1;
-    assign o_pin_wr_n = ((state == ST_TX) && ftdi_tx_valid && (r_pin_txe_n == 1'b0)) ? 1'b0 : 1'b1;
+    assign o_pin_data_oe = (state == ST_SWITCH_RX2TX2 || state == ST_TX) ? 1'b1 : 1'b0;
+    assign o_pin_oe_n = (state == ST_SWITCH_TX2RX2 || state == ST_RX) ? 1'b0 : 1'b1;
+    assign o_pin_rd_n = (ftdi_rx_valid && ftdi_rx_ready) ? 1'b0 : 1'b1;
+    assign o_pin_wr_n = (ftdi_tx_valid && ftdi_tx_ready) ? 1'b0 : 1'b1;
     assign o_pin_data = ftdi_tx_data;
 
     //
@@ -126,7 +129,7 @@ module ft245sync (
     //
     wire ftdi_tx_ready;
     wire ftdi_rx_valid;
-    // note: unlike o_pin_rd/wr decoding, this uses unregistered TXEn/RXFn signals
+    // note: allow transactions only when TXE / RXF are stable for 2 clock periods
     assign ftdi_tx_ready = (state == ST_TX) && (i_pin_txe_n == 1'b0) && (r_pin_txe_n == 1'b0);
     assign ftdi_rx_valid = (state == ST_RX) && (i_pin_rxf_n == 1'b0) && (r_pin_rxf_n == 1'b0);
 
@@ -136,10 +139,10 @@ module ft245sync (
     assign o_pin_siwu_n = 1'b1;
 
     // debug
-    assign o_dbg[0] = state[0];
-    assign o_dbg[1] = state[1];
-    assign o_dbg[2] = r_pin_rxf_n;
-    assign o_dbg[3] = r_pin_txe_n;
+    assign o_dbg[0] = (state == ST_RX);
+    assign o_dbg[1] = (state == ST_TX);
+    assign o_dbg[2] = ~r_pin_rxf_n;
+    assign o_dbg[3] = ~r_pin_txe_n;
 
     //
     // FTDI Tx data buffer

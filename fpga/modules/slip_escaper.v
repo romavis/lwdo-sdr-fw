@@ -6,36 +6,36 @@ Stream escaper inspired by SLIP protocol.
 See: https://en.wikipedia.org/wiki/Serial_Line_Internet_Protocol
 
 The idea is that we define 4 symbols:
-    SYMBOL_MARK
+    SYMBOL_END
     SYMBOL_ESC
-    SYMBOL_ESC_MARK
+    SYMBOL_ESC_END
     SYMBOL_ESC_ESC
 
 The input to the module is an AXIS-like stream of symbols, where data is
-augmented with an extra 'i_mark' bit. The output is an AXIS-like stream of
-symbols same width as at the input, but without 'i_mark' bit.
+augmented with an extra 'i_end' bit. The output is an AXIS-like stream of
+symbols same width as at the input, but without 'i_end' bit.
 
 Working of the module can be summarized by the table:
     +-------------------+-----------+-------------------------------+
-    |   Input symbol    |   i_mark  |   Emitted symbols             |
+    |   Input symbol    |   i_end   |   Emitted symbols             |
     +-------------------+-----------+-------------------------------+
-    |       ignored     |     1     |       SYMBOL_MARK             |
+    |       ignored     |     1     |       SYMBOL_END              |
     +-------------------+-----------+-------------------------------+
-    |   SYMBOL_MARK     |           | SYMBOL_ESC, SYMBOL_ESC_MARK   |
+    |   SYMBOL_END      |           | SYMBOL_ESC, SYMBOL_ESC_END    |
     |   SYMBOL_ESC      |     0     | SYMBOL_ESC, SYMBOL_ESC_ESC    |
     |    any other      |           |    input symbol as-is         |
     +-------------------+-----------+-------------------------------+
 
 Care should be taken when defining SYMBOL_* values. In general, all four
 symbols should be different, e.g.:
-    SYMBOL_MARK     = 0xAA
+    SYMBOL_END     = 0xAA
     SYMBOL_ESC      = 0xBB
-    SYMBOL_ESC_MARK = 0x01
+    SYMBOL_ESC_END = 0x01
     SYMBOL_ESC_ESC  = 0x02
 
 With such choice of values the outgoing stream will have a nice property:
-SYMBOL_MARK can be observed in it if and only if it corresponds to a
-transmission of a marker (i_mark=1). This allows SYMBOL_MARK to also be used
+SYMBOL_END can be observed in it if and only if it corresponds to a
+transmission of a ender (i_end=1). This allows SYMBOL_END to also be used
 for a secondary purpose of receiver synchronization when the stream
 is used to transmit framed data (e.g. resynchronization that occurs after
 losing an unknown number of symbols from the stream).
@@ -48,16 +48,16 @@ Stream escaped by this module can be un-escaped by a complementary
 module slip_escaper #(
     parameter SYMBOL_WIDTH = 32'd8,
     //
-    parameter SYMBOL_MARK = 8'hC0,
+    parameter SYMBOL_END = 8'hC0,
     parameter SYMBOL_ESC = 8'hDB,
-    parameter SYMBOL_ESC_MARK = 8'hDC,
+    parameter SYMBOL_ESC_END = 8'hDC,
     parameter SYMBOL_ESC_ESC = 8'hDD,
 ) (
-    input clk,
-    input rst,
+    input i_clk,
+    input i_rst,
     //
     input [SYMBOL_WIDTH-1:0] i_data,
-    input i_mark,
+    input i_end,
     input i_valid,
     output o_ready,
     //
@@ -75,15 +75,15 @@ module slip_escaper #(
     reg [1:0] route_next;
 
     // send symbol from input stream either as-is,
-    // or substitute it with MARK or ESC
+    // or substitute it with END or ESC
     localparam ROUTE_NORMAL = 2'd0;
     // pause input stream, send ESC_ESC symbol
     localparam ROUTE_ESC_ESC = 2'd1;
-    // pause input stream, send ESC_MARK symbol
-    localparam ROUTE_ESC_MARK = 2'd2;
+    // pause input stream, send ESC_END symbol
+    localparam ROUTE_ESC_END = 2'd2;
 
-    always @(posedge clk or posedge rst) begin
-        if (rst) begin
+    always @(posedge i_clk or posedge i_rst) begin
+        if (i_rst) begin
             route <= ROUTE_NORMAL;
         end else begin
             route <= route_next;
@@ -95,18 +95,18 @@ module slip_escaper #(
 
         case (route)
             ROUTE_NORMAL: begin
-                // if i_mark==1, then input stream data is simply discarded,
+                // if s_end_i==1, then input stream data is simply discarded,
                 // even when it specifies escapable symbol
-                if (sent && !i_mark) begin
+                if (sent && !i_end) begin
                     case (i_data)
                         SYMBOL_ESC: route_next = ROUTE_ESC_ESC;
-                        SYMBOL_MARK: route_next = ROUTE_ESC_MARK;
+                        SYMBOL_END: route_next = ROUTE_ESC_END;
                     endcase
                 end
             end
 
             ROUTE_ESC_ESC,
-            ROUTE_ESC_MARK: begin
+            ROUTE_ESC_END: begin
                 // after sending any of those escape codes, return to normal
                 if (sent) begin
                     route_next = ROUTE_NORMAL;
@@ -116,42 +116,44 @@ module slip_escaper #(
     end
 
     // Stream handling
-    reg rx_ready;
-    reg [SYMBOL_WIDTH-1:0] tx_data;
-    reg tx_valid;
+    reg s_ready_reg;
+    reg [SYMBOL_WIDTH-1:0] m_data_reg;
+    reg m_valid_reg;
 
     always @(*) begin
-        rx_ready = 1'b0;
-        tx_data = {SYMBOL_WIDTH{1'b0}};
-        tx_valid = 1'b0;
+        s_ready_reg = 1'b0;
+        m_data_reg = {SYMBOL_WIDTH{1'b0}};
+        m_valid_reg = 1'b0;
 
         case(route)
             ROUTE_NORMAL: begin
-                rx_ready = i_ready;
-                tx_valid = i_valid;
+                s_ready_reg = i_ready;
+                m_valid_reg = i_valid;
                 // Send incoming symbol as-is or substitute it
-                tx_data = i_data;
-                if (i_mark) begin
-                    tx_data = SYMBOL_MARK;
-                end else if (i_data == SYMBOL_ESC || i_data == SYMBOL_MARK) begin
-                    tx_data = SYMBOL_ESC;
+                m_data_reg = i_data;
+                if (i_end) begin
+                    m_data_reg = SYMBOL_END;
+                end
+                else
+                if (i_data == SYMBOL_ESC|| i_data == SYMBOL_END) begin
+                    m_data_reg = SYMBOL_ESC;
                 end
             end
 
             ROUTE_ESC_ESC: begin
-                tx_valid = 1'b1;
-                tx_data = SYMBOL_ESC_ESC;
+                m_valid_reg = 1'b1;
+                m_data_reg = SYMBOL_ESC_ESC;
             end
 
-            ROUTE_ESC_MARK: begin
-                tx_valid = 1'b1;
-                tx_data = SYMBOL_ESC_MARK;
+            ROUTE_ESC_END: begin
+                m_valid_reg = 1'b1;
+                m_data_reg = SYMBOL_ESC_END;
             end
         endcase
     end
 
-    assign o_data = tx_data;
-    assign o_valid = tx_valid;
-    assign o_ready = rx_ready;
+    assign o_data = m_data_reg;
+    assign o_valid = m_valid_reg;
+    assign o_ready = s_ready_reg;
 
 endmodule

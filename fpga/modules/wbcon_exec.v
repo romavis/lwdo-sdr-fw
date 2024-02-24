@@ -1,8 +1,11 @@
 module wbcon_exec #(
-    parameter COUNT_WIDTH = 8,      // MREQ word count width
     parameter WB_ADDR_WIDTH = 24,   // WB word address width
     parameter WB_DATA_WIDTH = 32,
-    parameter WB_SEL_WIDTH = (WB_DATA_WIDTH + 7) / 8
+    parameter WB_SEL_WIDTH = (WB_DATA_WIDTH + 7) / 8,
+    // Number of address bits necessary to addres byte within a word
+    parameter BYTE_ADDR_WIDTH = $clog2((WB_DATA_WIDTH + 7) / 8),
+    // Number of address bits sent over serial protocol
+    parameter SERIAL_ADDR_WIDTH = WB_ADDR_WIDTH + BYTE_ADDR_WIDTH
 )
 (
     // Clock (posedge) and sync reset
@@ -13,30 +16,31 @@ module wbcon_exec #(
     output o_wb_stb,
     input i_wb_stall,
     input i_wb_ack,
+    input i_wb_err,
+    input i_wb_rty,
     output o_wb_we,
-    output [WB_ADDR_WIDTH-1:0] o_wb_addr,
-    output [WB_DATA_WIDTH-1:0] o_wb_data,
+    output [WB_ADDR_WIDTH-1:0] o_wb_adr,
+    output [WB_DATA_WIDTH-1:0] o_wb_dat,
     output [WB_SEL_WIDTH-1:0] o_wb_sel,
-    input [WB_DATA_WIDTH-1:0] i_wb_data,
-    // Rx data stream (for write requests)
-    input i_rx_valid,
-    input [7:0] i_rx_data,
-    output o_rx_ready,
-    // Tx data stream (for read requests)
-    output o_tx_valid,
-    output [7:0] o_tx_data,
-    input i_tx_ready,
-    // MREQ bus
-    input i_mreq_valid,
-    output o_mreq_ready,
-    input [WB_ADDR_WIDTH-1:0] i_mreq_addr,
-    input [COUNT_WIDTH-1:0] i_mreq_cnt,
-    input i_mreq_wr,
-    input i_mreq_aincr
+    input [WB_DATA_WIDTH-1:0] i_wb_dat,
+    // Decoded command from wbcon_rx
+    input i_cmd_tvalid,
+    output o_cmd_tready,
+    input i_cmd_op_set_address,
+    input i_cmd_op_write_word,
+    input i_cmd_op_read_word,
+    input [SERIAL_ADDR_WIDTH-1:0] i_cmd_hw_addr,
+    input [WB_DATA_WIDTH-1:0] i_cmd_hw_data,
+    // Command result for wbcon_tx
+    output o_cres_tvalid,
+    input i_cres_tready,
+    output o_cres_op_set_address,
+    output o_cres_op_write_word,
+    output o_cres_op_read_word,
+    output [WB_DATA_WIDTH-1:0] o_cres_hw_data,
+    output o_cres_bus_err,
+    output o_cres_bus_rty //
 );
-
-    localparam WORD_SIZE = (WB_DATA_WIDTH + 7) / 8;
-    localparam BYTE_CNT_BITS = (WORD_SIZE >= 2) ? $clog2(WORD_SIZE) : 1;
 
     // SysCon
     wire clk;
@@ -44,35 +48,28 @@ module wbcon_exec #(
     assign clk = i_clk;
     assign rst = i_rst;
 
-    // Wishbone transfer status
+    // Wishbone handshake
     wire wb_req_ack;
     wire wb_resp_ack;
     assign wb_req_ack = o_wb_cyc && o_wb_stb && (!i_wb_stall);
-    assign wb_resp_ack = o_wb_cyc && i_wb_ack;
+    assign wb_resp_ack = o_wb_cyc && (i_wb_ack | i_wb_err | i_wb_rty);
 
-    // Tx and Rx byte streams status
-    wire tx_ack;
-    wire rx_ack;
-    assign tx_ack = o_tx_valid && i_tx_ready;
-    assign rx_ack = i_rx_valid && o_rx_ready;
+    // wbcon_rx / tx handshakes
+    wire cmd_ack = i_cmd_tvalid && o_cmd_tready;
+    wire cres_ack = o_cres_tvalid && i_cres_tready;
 
     // State machine
-    reg [2:0] state;
-    reg [2:0] state_next;
-    reg word_completed;
-    wire state_change;
-    assign state_change = (state_next != state) ? 1'b1 : 1'b0;
+    reg [1:0] state;
+    reg [1:0] state_next;
 
-    localparam ST_IDLE = 3'd0;
-    localparam ST_REG_REQ = 3'd1;
-    localparam ST_CONSTRUCT_WORD = 3'd2;
-    localparam ST_DECONSTRUCT_WORD = 3'd3;
-    localparam ST_WB_REQ_WAIT = 3'd4;
-    localparam ST_WB_WAIT_ACK = 3'd5;
+    localparam STATE_IDLE = 2'd0;
+    localparam STATE_AWAIT_WB_REQ = 2'd1;
+    localparam STATE_AWAIT_WB_RESP = 2'd2;
+    localparam STATE_AWAIT_CRES_ACK = 2'd3;
 
     always @(posedge clk or posedge rst) begin
         if (rst) begin
-            state <= ST_IDLE;
+            state <= STATE_IDLE;
         end else begin
             state <= state_next;
         end
@@ -80,157 +77,166 @@ module wbcon_exec #(
 
     always @(*) begin
         state_next = state;
-        word_completed = 1'b0;
-
         case (state)
-
-        // Idle: wait for incoming MREQ and process it when it comes
-        ST_IDLE:
-            if (i_mreq_valid) begin
-                state_next = ST_REG_REQ;
-            end
-
-        ST_REG_REQ:
-            state_next = mreq_wr ? ST_CONSTRUCT_WORD : ST_WB_REQ_WAIT;
-
-        // When the word has been constructed, generate WB write request
-        ST_CONSTRUCT_WORD:
-            if (wb_last_byte && rx_ack) begin
-                state_next = ST_WB_REQ_WAIT;
-            end
-
-        // When the word has been deconstructed, generate a new WB read request if there are bytes to transfer, else go to idle
-        ST_DECONSTRUCT_WORD:
-            if (wb_last_byte && tx_ack) begin
-                // Make new WB request
-                state_next = words_rem ? ST_WB_REQ_WAIT : ST_IDLE;
-                word_completed = 1'b1;
-            end
-
-        // Wait till WB request is acknowledged (CYC=STB=1, STALL=0),
-        // then wait for WB response
-        ST_WB_REQ_WAIT:
-            if (wb_req_ack) begin
-                state_next = ST_WB_WAIT_ACK;
-            end
-
-        // Wait for WB response, then:
-        // if read transfer -> proceed with word deconstruction
-        // if write transfer -> construct another word or idle
-        ST_WB_WAIT_ACK:
-            if (wb_resp_ack) begin
-                if (mreq_wr) begin
-                    state_next = words_rem ? ST_CONSTRUCT_WORD : ST_IDLE;
-                    word_completed = 1'b1;
-                end else begin
-                    state_next = ST_DECONSTRUCT_WORD;
+            // Idle: wait for incoming CMD and process it when it comes
+            STATE_IDLE: begin
+                if (i_cmd_tvalid) begin
+                    if (i_cmd_op_write_word || o_cres_op_read_word) begin
+                        state_next = STATE_AWAIT_WB_REQ;
+                    end else begin
+                        state_next = STATE_AWAIT_CRES_ACK;
+                    end
                 end
             end
 
+            // Wait till WB request is acknowledged (CYC=STB=1, STALL=0)
+            STATE_AWAIT_WB_REQ: begin
+                if (wb_req_ack) begin
+                    state_next = STATE_AWAIT_WB_RESP;
+                end
+            end
+
+            // Wait till WB provides a response (can be one of ACK, ERR, RTY)
+            STATE_AWAIT_WB_RESP: begin
+                if (wb_resp_ack) begin
+                    state_next = STATE_AWAIT_CRES_ACK; 
+                end
+            end
+
+            // Wait till CRES is acknowledged (wbcon_tx completes Tx)
+            STATE_AWAIT_CRES_ACK: begin
+                if (cres_ack) begin
+                    state_next = STATE_IDLE;
+                end
+            end
         endcase
     end
 
-    // WB data construction and deconstruction
-    reg [BYTE_CNT_BITS-1:0] wb_byte_ctr;
-    reg [WB_DATA_WIDTH-1:0] wb_data;
+    // WB handshake drivers
+    reg wb_cyc_reg;
+    reg wb_stb_reg;
 
-    wire wb_last_byte;
-    assign wb_last_byte = (wb_byte_ctr == (WORD_SIZE-1));
+    always @(*) begin
+        wb_cyc_reg = 1'b0;
+        wb_stb_reg = 1'b0;
+        case (state)
+            STATE_AWAIT_WB_REQ: begin
+                wb_cyc_reg = 1'b1;
+                wb_stb_reg = 1'b1;
+            end
 
-    always @(posedge clk or posedge rst) begin
-        if (rst) begin
-            wb_byte_ctr <= 0;
-            wb_data <= 0;
+            STATE_AWAIT_WB_RESP: begin
+                wb_cyc_reg = 1'b1;
+                wb_stb_reg = 1'b0;
+            end
+        endcase
+    end
+
+    // CRES and CMD handshake drivers
+    reg cres_tvalid_reg;
+    reg cmd_tready_reg;
+
+    always @(*) begin
+        cres_tvalid_reg = 1'b0;
+        cmd_tready_reg = 1'b0;
+        case (state)
+            STATE_AWAIT_CRES_ACK: begin
+                cres_tvalid_reg = 1'b1;
+                cmd_tready_reg = i_cres_tready;
+            end
+        endcase
+    end
+
+    // WB addr driver
+    reg [WB_ADDR_WIDTH-1:0] wb_addr_reg;
+
+    always @(posedge i_clk or posedge i_rst) begin
+        if (i_rst) begin
+            wb_addr_reg <= 1'd0;
         end else begin
-            // Init word construction: reset counters, clear data register
-            if (state_change && (state_next == ST_CONSTRUCT_WORD)) begin
-                wb_byte_ctr <= 0;
-                // (WB write) zero-fill data word
-                wb_data <= 0;
+            if (i_cmd_op_set_address && i_cmd_tvalid) begin
+                // Only word-aligned accesses. Address LSBs are discarded.
+                wb_addr_reg <= i_cmd_hw_addr >> BYTE_ADDR_WIDTH;
             end
-            // Init word deconstruction: reset counters, capture data word into data register
-            if (state_change && (state_next == ST_DECONSTRUCT_WORD)) begin
-                wb_byte_ctr <= 0;
-                // (WB read) capture data bus
-                wb_data <= i_wb_data;
-            end
-            // Word construction
-            if (state == ST_CONSTRUCT_WORD && rx_ack) begin
-                // Capture byte from Rx stream
-                wb_data[8*wb_byte_ctr+:8] <= i_rx_data;
-                wb_byte_ctr <= wb_byte_ctr + 1'd1;
-            end
-            // Word deconstruction
-            if (state == ST_DECONSTRUCT_WORD && tx_ack) begin
-                wb_byte_ctr <= wb_byte_ctr + 1'd1;
-            end
-
         end
     end
 
-    // WB address
-    reg [WB_ADDR_WIDTH-1:0] wb_addr;
+    // WB sel driver
+    reg [WB_SEL_WIDTH-1:0] wb_sel_reg;
 
-    always @(posedge clk or posedge rst) begin
-        if (rst) begin
-            wb_addr <= 0;
+    always @(*) begin
+        // only full-word accesses for now
+        wb_sel_reg = {WB_SEL_WIDTH{1'b1}};
+    end
+
+    // WB write data & we driver
+    reg [WB_DATA_WIDTH-1:0] wb_wdata_reg;
+    reg wb_we_reg;
+
+    always @(posedge i_clk or posedge i_rst) begin
+        if (i_rst) begin
+            wb_wdata_reg <= 1'b0;
+            wb_we_reg <= 1'b0;
         end else begin
-            // Load address from MREQ during init
-            // Increment address immediately after WB request has been sent
-            if (state == ST_REG_REQ)
-                wb_addr <= mreq_addr;
-            else if (mreq_aincr && wb_req_ack)
-                wb_addr <= wb_addr + 1'd1;
+            if (i_cmd_tvalid) begin
+                wb_wdata_reg <= i_cmd_hw_data;
+                wb_we_reg <= i_cmd_op_write_word;
+            end
         end
     end
 
-    // Word counter
-    reg [COUNT_WIDTH-1:0] words_rem;
+    // WB read data & status cache
+    reg [WB_DATA_WIDTH-1:0] wb_rdata_reg;
+    reg wb_err_reg;
+    reg wb_rty_reg;
 
-    always @(posedge clk or posedge rst) begin
-        if (rst) begin
-            words_rem <= 0;
+    always @(posedge i_clk or posedge i_rst) begin
+        if (i_rst) begin
+            wb_rdata_reg <= 1'b0;
         end else begin
-            // Capture word count from MREQ during init
-            // Decrement word count just after we've finished processing a word
-            if (state == ST_REG_REQ) words_rem <= mreq_cnt;
-            else if (word_completed) words_rem <= words_rem - 1'd1;
+            if (wb_resp_ack) begin
+                wb_rdata_reg <= i_wb_dat;
+                wb_err_reg <= i_wb_err;
+                wb_rty_reg <= i_wb_rty;
+            end
         end
     end
 
-    // Register MREQ
-    reg [WB_ADDR_WIDTH-1:0] mreq_addr;
-    reg [COUNT_WIDTH-1:0] mreq_cnt;
-    reg mreq_wr;
-    reg mreq_aincr;
+    // Register op_* signals to improve timings
+    reg cmd_op_set_address_q;
+    reg cmd_op_write_word_q;
+    reg cmd_op_read_word_q;
 
-    always @(posedge clk or posedge rst) begin
-        if (rst) begin
-            mreq_addr <= 0;
-            mreq_cnt <= 0;
-            mreq_wr <= 0;
-            mreq_aincr <= 0;
-        end else if (state_next == ST_REG_REQ) begin
-            mreq_addr <= i_mreq_addr;
-            mreq_cnt <= i_mreq_cnt;
-            mreq_wr <= i_mreq_wr;
-            mreq_aincr <= i_mreq_aincr;
+    always @(posedge i_clk or posedge i_rst) begin
+        if (i_rst) begin
+            cmd_op_set_address_q <= 1'b0;
+            cmd_op_write_word_q <= 1'b0;
+            cmd_op_read_word_q <= 1'b0;
+        end else begin
+            if (i_cmd_tvalid) begin
+                cmd_op_set_address_q <= i_cmd_op_set_address;
+                cmd_op_write_word_q <= i_cmd_op_write_word;
+                cmd_op_read_word_q <= i_cmd_op_read_word;
+            end
         end
     end
 
-    // WB outputs
-    assign o_wb_cyc = (state == ST_WB_REQ_WAIT || state == ST_WB_WAIT_ACK);
-    assign o_wb_stb = (state == ST_WB_REQ_WAIT);
-    assign o_wb_we = mreq_wr;
-    assign o_wb_addr = wb_addr;
-    assign o_wb_data = wb_data;
-    assign o_wb_sel = {WORD_SIZE{1'b1}};    // our module always writes full words
-    // MREQ ready
-    assign o_mreq_ready = (state_next == ST_IDLE && state_change);
-    // Rx ready
-    assign o_rx_ready = (state == ST_CONSTRUCT_WORD);
-    // Tx stream
-    assign o_tx_valid = (state == ST_DECONSTRUCT_WORD);
-    assign o_tx_data = wb_data[8*wb_byte_ctr+:8];
+    // Wiring
+    assign o_wb_cyc = wb_cyc_reg;
+    assign o_wb_stb = wb_stb_reg;
+    assign o_wb_we = wb_we_reg;
+    assign o_wb_adr = wb_addr_reg;
+    assign o_wb_dat = wb_wdata_reg;
+    assign o_wb_sel = wb_sel_reg;
+
+    assign o_cmd_tready = cmd_tready_reg;
+
+    assign o_cres_tvalid = cres_tvalid_reg;
+    assign o_cres_op_set_address = cmd_op_set_address_q;
+    assign o_cres_op_write_word = cmd_op_write_word_q;
+    assign o_cres_op_read_word = cmd_op_read_word_q;
+    assign o_cres_hw_data = wb_rdata_reg;
+    assign o_cres_bus_err = wb_err_reg;
+    assign o_cres_bus_rty = wb_rty_reg;
 
 endmodule
