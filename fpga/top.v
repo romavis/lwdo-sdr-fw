@@ -698,6 +698,7 @@ module top (
         .o_tx_axis_tvalid(cp_tx_tvalid),
         .i_tx_axis_tready(cp_tx_tready),
         .o_tx_axis_tdata(cp_tx_tdata),
+        .o_tx_axis_tkeep(cp_tx_tkeep),
         .o_tx_axis_tlast(cp_tx_tlast)
     );
 
@@ -814,7 +815,7 @@ module top (
     wire cp_tx_tvalid;
     wire cp_tx_tready;
     wire [7:0] cp_tx_tdata;
-    wire cp_tx_tkeep = 1;
+    wire cp_tx_tkeep;
     wire cp_tx_tlast;
     wire [7:0] cp_tx_tid = 8'hAA;
 

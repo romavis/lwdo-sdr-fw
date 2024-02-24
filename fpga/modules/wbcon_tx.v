@@ -18,6 +18,7 @@ module wbcon_tx #(
     // Command execution result input
     input i_cres_tvalid,
     output o_cres_tready,
+    input i_cres_op_null,
     input i_cres_op_set_address,
     input i_cres_op_write_word,
     input i_cres_op_read_word,
@@ -28,6 +29,7 @@ module wbcon_tx #(
     output o_tx_axis_tvalid,
     input i_tx_axis_tready,
     output [7:0] o_tx_axis_tdata,
+    output o_tx_axis_tkeep,
     output o_tx_axis_tlast  //
 );
 
@@ -66,13 +68,18 @@ module wbcon_tx #(
     end
 
     // Response type identifier
+    reg has_hdr;
     reg has_data;
     reg has_status;
 
     always @(*) begin
+        has_hdr = 1'b1;
         has_data = 1'b0;
         has_status = 1'b0;
         if (i_cres_tvalid) begin
+            if (i_cres_op_null) begin
+                has_hdr = 1'b0;
+            end
             if (i_cres_op_read_word) begin
                 has_data = 1'b1;
                 has_status = 1'b1;
@@ -117,6 +124,20 @@ module wbcon_tx #(
             STATE_SEND_STATUS: begin
                 if (tx_ack) begin
                     state_next = STATE_SEND_HDR;
+                end
+            end
+        endcase
+    end
+
+    // TKEEP
+    reg tx_axis_tkeep_reg;
+
+    always @(*) begin
+        tx_axis_tkeep_reg = 1'b1;
+        case (state)
+            STATE_SEND_HDR: begin
+                if (!has_hdr) begin
+                    tx_axis_tkeep_reg = 1'b0;
                 end
             end
         endcase
@@ -202,6 +223,9 @@ module wbcon_tx #(
         case (state)
             STATE_SEND_HDR: begin
                 tx_axis_tdata_reg = HDR_INVALID_OP;
+                if (i_cres_op_null) begin
+                    tx_axis_tdata_reg = 8'b0;
+                end
                 if (i_cres_op_set_address) begin
                     tx_axis_tdata_reg = HDR_SET_ADDRESS;
                 end
@@ -232,6 +256,7 @@ module wbcon_tx #(
     assign o_cres_tready = cres_tready_reg;
     assign o_tx_axis_tvalid = tx_axis_tvalid_reg;
     assign o_tx_axis_tdata = tx_axis_tdata_reg;
+    assign o_tx_axis_tkeep = tx_axis_tkeep_reg;
     assign o_tx_axis_tlast = tx_axis_tlast_reg;
 
 endmodule

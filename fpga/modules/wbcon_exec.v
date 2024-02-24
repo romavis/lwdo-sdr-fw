@@ -26,6 +26,7 @@ module wbcon_exec #(
     // Decoded command from wbcon_rx
     input i_cmd_tvalid,
     output o_cmd_tready,
+    input i_cmd_op_null,
     input i_cmd_op_set_address,
     input i_cmd_op_write_word,
     input i_cmd_op_read_word,
@@ -34,6 +35,7 @@ module wbcon_exec #(
     // Command result for wbcon_tx
     output o_cres_tvalid,
     input i_cres_tready,
+    output o_cres_op_null,
     output o_cres_op_set_address,
     output o_cres_op_write_word,
     output o_cres_op_read_word,
@@ -203,17 +205,20 @@ module wbcon_exec #(
     end
 
     // Register op_* signals to improve timings
+    reg cmd_op_null_q;
     reg cmd_op_set_address_q;
     reg cmd_op_write_word_q;
     reg cmd_op_read_word_q;
 
     always @(posedge i_clk or posedge i_rst) begin
         if (i_rst) begin
+            cmd_op_null_q <= 1'b0;
             cmd_op_set_address_q <= 1'b0;
             cmd_op_write_word_q <= 1'b0;
             cmd_op_read_word_q <= 1'b0;
         end else begin
             if (i_cmd_tvalid) begin
+                cmd_op_null_q <= i_cmd_op_null;
                 cmd_op_set_address_q <= i_cmd_op_set_address;
                 cmd_op_write_word_q <= i_cmd_op_write_word;
                 cmd_op_read_word_q <= i_cmd_op_read_word;
@@ -232,6 +237,7 @@ module wbcon_exec #(
     assign o_cmd_tready = cmd_tready_reg;
 
     assign o_cres_tvalid = cres_tvalid_reg;
+    assign o_cres_op_null = cmd_op_null_q;
     assign o_cres_op_set_address = cmd_op_set_address_q;
     assign o_cres_op_write_word = cmd_op_write_word_q;
     assign o_cres_op_read_word = cmd_op_read_word_q;

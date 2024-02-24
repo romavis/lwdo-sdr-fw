@@ -27,7 +27,7 @@ def main():
     ftdi.reset()
     ftdi.set_bitmode(0, Ftdi.BitMode.RESET)
     ftdi.set_bitmode(0, Ftdi.BitMode.SYNCFF)
-    ftdi.set_latency_timer(255)
+    ftdi.set_latency_timer(50)
     ftdi.purge_buffers()
 
     def recv_and_log(nbytes: int = 4096) -> bytes:
@@ -61,6 +61,7 @@ def main():
     log_and_send([0x21, 0x00, 0x01, 0xc0])
     recv_and_log()
     log_and_send([0x23, 0xc0])
+    recv_and_log()
     recv_and_log()
 
     print("Done.")

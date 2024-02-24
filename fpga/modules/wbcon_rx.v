@@ -8,7 +8,7 @@ before receiving the next command.
 
 ====================== General packet format ======================
 
-Command packet format:
+Generally command packets look like this:
 
   +-----+----------+
   | CMD | BODY...  |
@@ -37,6 +37,16 @@ STATUS is optional and can be one of:
     0x01 - successful execution
     0x02 - bus error
     0x03 - transaction aborted, retry
+
+========================== NULL =========================
+
+Command:
+
+    Empty packet (a single xfer with TKEEP=0, TLAST=1)
+
+Reply:
+
+    Empty packet (a single xfer with TKEEP=0, TLAST=1)
 
 ====================== SET_ADDRESS ======================
 
@@ -129,6 +139,7 @@ module wbcon_rx #(
     // Decoded command output with handshake
     output o_cmd_tvalid,
     input i_cmd_tready,
+    output o_cmd_op_null,
     output o_cmd_op_set_address,
     output o_cmd_op_write_word,
     output o_cmd_op_read_word,
@@ -191,13 +202,9 @@ module wbcon_rx #(
                         endcase
                     end
                     if (i_rx_axis_tlast) begin
-                        if (i_rx_axis_tkeep) begin
-                            // Received command code -> process it
-                            state_next = STATE_AWAIT_COMPLETION;
-                        end else begin
-                            // Received empty packet -> discard it
-                            state_next = STATE_RECV_CMD;
-                        end
+                        // Empty packet is also a command (cmd_op_null)
+                        // that needs time to be completed
+                        state_next = STATE_AWAIT_COMPLETION;
                     end
                     // If TLAST==TKEEP==0 then simply discard the symbol
                 end
@@ -260,33 +267,42 @@ module wbcon_rx #(
     end
 
     // Operation selector decoding
+    reg cmd_op_null_reg;
     reg cmd_op_set_address_reg;
     reg cmd_op_read_word_reg;
     reg cmd_op_write_word_reg;
 
     always @(posedge i_clk or posedge i_rst) begin
         if (i_rst) begin
+            cmd_op_null_reg <= 1'b0;
             cmd_op_set_address_reg <= 1'b0;
             cmd_op_read_word_reg <= 1'b0;
             cmd_op_write_word_reg <= 1'b0;
         end else begin
-            if (state == STATE_RECV_CMD && rx_ack && i_rx_axis_tkeep) begin
+            if (state == STATE_RECV_CMD && rx_ack) begin
+                cmd_op_null_reg <= 1'b0;
                 cmd_op_set_address_reg <= 1'b0;
                 cmd_op_read_word_reg <= 1'b0;
                 cmd_op_write_word_reg <= 1'b0;
-                case(i_rx_axis_tdata)
-                    CMD_SET_ADDRESS: begin
-                        cmd_op_set_address_reg <= 1'b1;
-                    end
-                    CMD_WRITE_WORD: begin
-                        cmd_op_write_word_reg <= 1'b1;
-                    end
-                    CMD_READ_WORD: begin
-                        cmd_op_read_word_reg <= 1'b1;
-                    end
-                    // No default case, since if none of selectors is set,
-                    // executor should consider it as an "invalid operation"
-                endcase
+                if(i_rx_axis_tkeep) begin
+                    case(i_rx_axis_tdata)
+                        CMD_SET_ADDRESS: begin
+                            cmd_op_set_address_reg <= 1'b1;
+                        end
+                        CMD_WRITE_WORD: begin
+                            cmd_op_write_word_reg <= 1'b1;
+                        end
+                        CMD_READ_WORD: begin
+                            cmd_op_read_word_reg <= 1'b1;
+                        end
+                        // No default case, since if none of selectors is set,
+                        // executor should consider it as an "invalid operation"
+                    endcase
+                end else if (i_rx_axis_tlast) begin
+                    // TKEEP=0, TLAST=1 during STATE_RECV_CMD (empty packet)
+                    // This triggers execution of OP_NULL
+                    cmd_op_null_reg <= 1'b1;
+                end
             end
         end
     end
@@ -314,6 +330,7 @@ module wbcon_rx #(
     // Outputs
     assign o_rx_axis_tready = rx_axis_tready_reg;
     assign o_cmd_tvalid = cmd_tvalid_reg;
+    assign o_cmd_op_null = cmd_op_null_reg;
     assign o_cmd_op_set_address = cmd_op_set_address_reg;
     assign o_cmd_op_write_word = cmd_op_write_word_reg;
     assign o_cmd_op_read_word = cmd_op_read_word_reg;

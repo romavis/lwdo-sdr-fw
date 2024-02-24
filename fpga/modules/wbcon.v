@@ -27,6 +27,7 @@ module wbcon #(
     output o_tx_axis_tvalid,
     input i_tx_axis_tready,
     output [7:0] o_tx_axis_tdata,
+    output o_tx_axis_tkeep,
     output o_tx_axis_tlast,
     // Wishbone master
     output o_wb_cyc,
@@ -48,6 +49,7 @@ module wbcon #(
     // CMD wires
     wire cmd_tvalid;
     wire cmd_tready;
+    wire cmd_op_null;
     wire cmd_op_set_address;
     wire cmd_op_write_word;
     wire cmd_op_read_word;
@@ -57,6 +59,7 @@ module wbcon #(
     // CRES wires
     wire cres_tvalid;
     wire cres_tready;
+    wire cres_op_null;
     wire cres_op_set_address;
     wire cres_op_write_word;
     wire cres_op_read_word;
@@ -79,6 +82,7 @@ module wbcon #(
         //
         .o_cmd_tvalid(cmd_tvalid),
         .i_cmd_tready(cmd_tready),
+        .o_cmd_op_null(cmd_op_null),
         .o_cmd_op_set_address(cmd_op_set_address),
         .o_cmd_op_write_word(cmd_op_write_word),
         .o_cmd_op_read_word(cmd_op_read_word),
@@ -94,6 +98,7 @@ module wbcon #(
         //
         .i_cres_tvalid(cres_tvalid),
         .o_cres_tready(cres_tready),
+        .i_cres_op_null(cres_op_null),
         .i_cres_op_set_address(cres_op_set_address),
         .i_cres_op_write_word(cres_op_write_word),
         .i_cres_op_read_word(cres_op_read_word),
@@ -104,6 +109,7 @@ module wbcon #(
         .o_tx_axis_tvalid(o_tx_axis_tvalid),
         .i_tx_axis_tready(i_tx_axis_tready),
         .o_tx_axis_tdata(o_tx_axis_tdata),
+        .o_tx_axis_tkeep(o_tx_axis_tkeep),
         .o_tx_axis_tlast(o_tx_axis_tlast)
     );
 
@@ -131,6 +137,7 @@ module wbcon #(
         //
         .i_cmd_tvalid(cmd_tvalid),
         .o_cmd_tready(cmd_tready),
+        .i_cmd_op_null(cmd_op_null),
         .i_cmd_op_set_address(cmd_op_set_address),
         .i_cmd_op_write_word(cmd_op_write_word),
         .i_cmd_op_read_word(cmd_op_read_word),
@@ -139,6 +146,7 @@ module wbcon #(
         //
         .o_cres_tvalid(cres_tvalid),
         .i_cres_tready(cres_tready),
+        .o_cres_op_null(cres_op_null),
         .o_cres_op_set_address(cres_op_set_address),
         .o_cres_op_write_word(cres_op_write_word),
         .o_cres_op_read_word(cres_op_read_word),
