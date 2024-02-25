@@ -55,14 +55,12 @@ V_MODULES += \
 	$(SRC_DIR)/modules/ft245sync.v \
 	$(SRC_DIR)/modules/lut_delay.v \
 	$(SRC_DIR)/modules/phase_det.v \
-	$(SRC_DIR)/modules/rr_arbiter.v \
 	$(SRC_DIR)/modules/rst_bridge.v \
 	$(SRC_DIR)/modules/slip_axis_decoder_noid.v \
 	$(SRC_DIR)/modules/slip_axis_encoder.v \
 	$(SRC_DIR)/modules/slip_escaper.v \
 	$(SRC_DIR)/modules/slip_unescaper.v \
 	$(SRC_DIR)/modules/stream_buf.v \
-	$(SRC_DIR)/modules/syncfifo.v \
 	$(SRC_DIR)/modules/wb_mem_dly.v \
 	$(SRC_DIR)/modules/wbcon_exec.v \
 	$(SRC_DIR)/modules/wbcon_rx.v \
