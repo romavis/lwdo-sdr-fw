@@ -72,19 +72,6 @@ V_INCLUDE_PATHS += \
 	$(SRC_DIR)/modules
 
 
-# # 3rdparty verilog modules: async_fifo
-# V_MODULES += \
-# 	$(SRC_DIR)/3rdparty/async_fifo/src/vlog/async_fifo.v \
-# 	$(SRC_DIR)/3rdparty/async_fifo/src/vlog/fifo_2mem.v \
-# 	$(SRC_DIR)/3rdparty/async_fifo/src/vlog/rptr_empty.v \
-# 	$(SRC_DIR)/3rdparty/async_fifo/src/vlog/sync_r2w.v \
-# 	$(SRC_DIR)/3rdparty/async_fifo/src/vlog/sync_w2r.v \
-# 	$(SRC_DIR)/3rdparty/async_fifo/src/vlog/wptr_full.v
-
-# V_INCLUDE_PATHS += \
-# 	$(SRC_DIR)/3rdparty/async_fifo/src/vlog
-
-
 # 3rdparty verilog modules: verilog-axis
 V_MODULES += \
 	$(SRC_DIR)/3rdparty/verilog-axis/rtl/axis_async_fifo.v \
