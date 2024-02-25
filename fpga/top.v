@@ -10,16 +10,10 @@ module top (
     output p_led_in3_g,
     output p_led_in4_r,
     output p_led_in4_g,
-    // ADC clocks: on pin 15 we have output, on pin 20 we have input
+    // ADC
     output p_adc_sclk,
-    input p_adc_sclk_gbin,
-    // ADC data and sync
-    input p_adc1_sda,
-    input p_adc1_sdb,
-    output p_adc1_cs_n,
-    input p_adc2_sda,
-    input p_adc2_sdb,
-    output p_adc2_cs_n,
+    input [3:0] p_adc_sdata,
+    output [1:0] p_adc_cs_n,
     // External I/O,
     inout [8:1] p_extio,
     // SPI DAC,
@@ -45,6 +39,22 @@ module top (
     input p_ft_fifo_rxf_n,
     inout [7:0] p_ft_fifo_d
 );
+
+    // // SDATA DDR clk generator
+    // // Clock can be delayed by a few ns wrt SCLK to delay latching of SDATA.
+    // // This is needed to compensate for a long SCLK->SDATA delay of AD7357,
+    // // as well as delays of FPGA SCLK output and SDATA input cells.
+    // generate
+    //     genvar i;
+    //     for (i = 0; i < NUM_CHANNELS; i = i + 1) begin
+    //         lut_delay #(
+    //             .DELAY(SDATA_LATCH_DELAY[32*i+31:32*i])
+    //         ) u_sdata_ddr_clk_delay (
+    //             .d(i_ctl_ddr_clk),
+    //             .q(o_adc_sdata_ddr_clk[i])
+    //         );
+    //     end
+    // endgenerate
 
     // ===============================================================================================================
     // =========================                                                             =========================
@@ -84,9 +94,6 @@ module top (
         .BYPASS(1'b0)
     );
 
-    // Output PLL clock on the pin
-    assign p_adc_sclk = sys_pll_out;
-
 
     // ===============================================================================================================
     // =========================                                                             =========================
@@ -95,11 +102,7 @@ module top (
     // =========================                                                             =========================
     // ===============================================================================================================
 
-    // ADC controller is clocked from (negedge p_adc_sclk_gbin)
-    wire sys_clk_neg = p_adc_sclk_gbin;
-    // System clock domain is clocked from (posedge sys_clk)
-    // Because we want it to be exactly the same clock as ADC's, we set sys_clk=~p_adc_sclk_gbin
-    wire sys_clk = ~p_adc_sclk_gbin;
+    wire sys_clk = sys_pll_out;
 
     // --------------------------------------------------
     // System reset generator
@@ -140,30 +143,32 @@ module top (
     wire [7:0] csr_adct_srate1_psc_div, csr_adct_srate2_psc_div;
 
     fastcounter #(
-        .NBITS(8)
+        .NBITS(26)
     ) adct_srate1_psc (
         .i_clk(sys_clk),
         .i_rst(sys_rst),
         .i_mode(2'd0),      // AUTORELOAD
         .i_dir(1'b0),       // DOWN
-        .i_en(csr_adct_srate1_en),
+        // .i_en(csr_adct_srate1_en),
+            .i_en(1'b1),
         .i_load(1'b0),
-        .i_load_q(csr_adct_srate1_psc_div),
+        // .i_load_q(csr_adct_srate1_psc_div),
+            .i_load_q(26'hFFFFFF),
         .o_carry_dly(adct_srate1)
     );
 
-    fastcounter #(
-        .NBITS(8)
-    ) adct_srate2_psc (
-        .i_clk(sys_clk),
-        .i_rst(sys_rst),
-        .i_mode(2'd0),      // AUTORELOAD
-        .i_dir(1'b0),       // DOWN
-        .i_en(csr_adct_srate2_en),
-        .i_load(1'b0),
-        .i_load_q(csr_adct_srate2_psc_div),
-        .o_carry_dly(adct_srate2)
-    );
+    // fastcounter #(
+    //     .NBITS(8)
+    // ) adct_srate2_psc (
+    //     .i_clk(sys_clk),
+    //     .i_rst(sys_rst),
+    //     .i_mode(2'd0),      // AUTORELOAD
+    //     .i_dir(1'b0),       // DOWN
+    //     .i_en(csr_adct_srate2_en),
+    //     .i_load(1'b0),
+    //     .i_load_q(csr_adct_srate2_psc_div),
+    //     .o_carry_dly(adct_srate2)
+    // );
 
     //  Timing pulse generators
     //
@@ -189,342 +194,184 @@ module top (
         .i_rst(sys_rst),
         .i_mode(2'd0),      // AUTORELOAD
         .i_dir(1'b0),       // DOWN
-        .i_en(adct_srate1 & csr_adct_puls1_en),
+        // .i_en(adct_srate1 & csr_adct_puls1_en),
+            .i_en(adct_srate1),
         .i_load(1'b0),
-        .i_load_q(csr_adct_puls1_psc_div),
+        // .i_load_q(csr_adct_puls1_psc_div),
+            .i_load_q(23'd9),
         .o_carry_dly(adct_puls1)
     );
 
-    fastcounter #(
-        .NBITS(23)
-    ) adct_puls2_psc (
-        .i_clk(sys_clk),
-        .i_rst(sys_rst),
-        .i_mode(2'd0),      // AUTORELOAD
-        .i_dir(1'b0),       // DOWN
-        .i_en(adct_srate2 & csr_adct_puls2_en),
-        .i_load(1'b0),
-        .i_load_q(csr_adct_puls2_psc_div),
-        .o_carry_dly(adct_puls2)
-    );
+    // fastcounter #(
+    //     .NBITS(23)
+    // ) adct_puls2_psc (
+    //     .i_clk(sys_clk),
+    //     .i_rst(sys_rst),
+    //     .i_mode(2'd0),      // AUTORELOAD
+    //     .i_dir(1'b0),       // DOWN
+    //     .i_en(adct_srate2 & csr_adct_puls2_en),
+    //     .i_load(1'b0),
+    //     .i_load_q(csr_adct_puls2_psc_div),
+    //     .o_carry_dly(adct_puls2)
+    // );
 
-    // Pulse micro-delay (delay is in adc_clk periods, max delay is up to 2x adc_srate periods)
-    fastcounter #(
-        .NBITS(9)
-    ) adct_puls1_dly (
-        .i_clk(sys_clk),
-        .i_rst(sys_rst),
-        .i_mode(2'd1),      // ONESHOT
-        .i_dir(1'b0),       // DOWN
-        .i_en(1'b1),
-        .i_load(adct_puls1),
-        .i_load_q(csr_adct_puls1_dly),
-        .o_epulse(adct_puls1_d)
-    );
+    // // Pulse micro-delay (delay is in adc_clk periods, max delay is up to 2x adc_srate periods)
+    // fastcounter #(
+    //     .NBITS(9)
+    // ) adct_puls1_dly (
+    //     .i_clk(sys_clk),
+    //     .i_rst(sys_rst),
+    //     .i_mode(2'd1),      // ONESHOT
+    //     .i_dir(1'b0),       // DOWN
+    //     .i_en(1'b1),
+    //     .i_load(adct_puls1),
+    //     .i_load_q(csr_adct_puls1_dly),
+    //     .o_epulse(adct_puls1_d)
+    // );
 
-    fastcounter #(
-        .NBITS(9)
-    ) adct_puls2_dly (
-        .i_clk(sys_clk),
-        .i_rst(sys_rst),
-        .i_mode(2'd1),      // ONESHOT
-        .i_dir(1'b0),       // DOWN
-        .i_en(1'b1),
-        .i_load(adct_puls2),
-        .i_load_q(csr_adct_puls2_dly),
-        .o_epulse(adct_puls2_d)
-    );
+    // fastcounter #(
+    //     .NBITS(9)
+    // ) adct_puls2_dly (
+    //     .i_clk(sys_clk),
+    //     .i_rst(sys_rst),
+    //     .i_mode(2'd1),      // ONESHOT
+    //     .i_dir(1'b0),       // DOWN
+    //     .i_en(1'b1),
+    //     .i_load(adct_puls2),
+    //     .i_load_q(csr_adct_puls2_dly),
+    //     .o_epulse(adct_puls2_d)
+    // );
 
-    // Pulse width formers (width specified in adc_srate periods)
-    fastcounter #(
-        .NBITS(16)  // enough for 16ms pulse @ adc_srate=4MHz
-    ) adct_puls1_fmr (
-        .i_clk(sys_clk),
-        .i_rst(sys_rst),
-        .i_mode(2'd1),      // ONESHOT
-        .i_dir(1'b0),       // DOWN
-        .i_en(adct_srate1),
-        .i_load(adct_puls1_d),
-        .i_load_q(csr_adct_puls1_pwidth),
-        .o_nend(adct_puls1_w)
-    );
+    // // Pulse width formers (width specified in adc_srate periods)
+    // fastcounter #(
+    //     .NBITS(16)  // enough for 16ms pulse @ adc_srate=4MHz
+    // ) adct_puls1_fmr (
+    //     .i_clk(sys_clk),
+    //     .i_rst(sys_rst),
+    //     .i_mode(2'd1),      // ONESHOT
+    //     .i_dir(1'b0),       // DOWN
+    //     .i_en(adct_srate1),
+    //     .i_load(adct_puls1_d),
+    //     .i_load_q(csr_adct_puls1_pwidth),
+    //     .o_nend(adct_puls1_w)
+    // );
 
-    fastcounter #(
-        .NBITS(16)
-    ) adct_puls2_fmr (
-        .i_clk(sys_clk),
-        .i_rst(sys_rst),
-        .i_mode(2'd1),      // ONESHOT
-        .i_dir(1'b0),       // DOWN
-        .i_en(adct_srate2),
-        .i_load(adct_puls2_d),
-        .i_load_q(csr_adct_puls2_pwidth),
-        .o_nend(adct_puls2_w)
-    );
+    // fastcounter #(
+    //     .NBITS(16)
+    // ) adct_puls2_fmr (
+    //     .i_clk(sys_clk),
+    //     .i_rst(sys_rst),
+    //     .i_mode(2'd1),      // ONESHOT
+    //     .i_dir(1'b0),       // DOWN
+    //     .i_en(adct_srate2),
+    //     .i_load(adct_puls2_d),
+    //     .i_load_q(csr_adct_puls2_pwidth),
+    //     .o_nend(adct_puls2_w)
+    // );
+
+    // --------------------------------------------------
+    //                  Timestamp counter
+    // --------------------------------------------------
+
+    // TODO
+    wire [31:0] cyccnt = 32'hAABBCCDD;
 
     // --------------------------------------------------
     //     ADC - Analog-to-digital converters
     // --------------------------------------------------
 
-    wire csr_adc_adc1_en, csr_adc_adc2_en;
-
-    wire adc1_start = adct_srate1 & csr_adc_adc1_en;
-    wire adc2_start = adct_srate2 & csr_adc_adc2_en;
-    wire adc1_rdy;
-    wire adc2_rdy;
-    wire [13:0] adc1_data_a;
-    wire [13:0] adc1_data_b;
-    wire [13:0] adc2_data_a;
-    wire [13:0] adc2_data_b;
-
-    ad7357if adc1 (
-        // interface
-        .i_if_sclk(sys_clk_neg),
-        .o_if_cs_n(p_adc1_cs_n),
-        .i_if_sdata_a(p_adc1_sda),
-        .i_if_sdata_b(p_adc1_sdb),
-        // Control
-        .i_rst(sys_rst),
-        .i_sync(adc1_start),
-        // Data
-        .o_ready(adc1_rdy),
-        .o_sample_a(adc1_data_a),
-        .o_sample_b(adc1_data_b)
-    );
-
-    ad7357if adc2 (
-        // interface
-        .i_if_sclk(sys_clk_neg),
-        .o_if_cs_n(p_adc2_cs_n),
-        .i_if_sdata_a(p_adc2_sda),
-        .i_if_sdata_b(p_adc2_sdb),
-        // Control
-        .i_rst(sys_rst),
-        .i_sync(adc2_start),
-        // Data
-        .o_ready(adc2_rdy),
-        .o_sample_a(adc2_data_a),
-        .o_sample_b(adc2_data_b)
-    );
-
-    // -------------------------
-    // ADC timing pulse latches
-    // -------------------------
-
-    // This synchronizes adct_puls1/2 with adc1/2_rdy
-    reg adc1_puls, adc2_puls;
-    always @(posedge sys_clk or posedge sys_rst)
-        if (sys_rst) begin
-            adc1_puls <= 1'b0;
-            adc2_puls <= 1'b0;
-        end else begin
-            if (adc1_rdy)
-                adc1_puls <= 1'b0;
-            else if (adct_puls1)
-                adc1_puls <= 1'b1;
-            //
-            if (adc2_rdy)
-                adc2_puls <= 1'b0;
-            else if (adct_puls2)
-                adc2_puls <= 1'b1;
-        end
-
-    // ------------------
-    // ADC data streams
-    // ------------------
-
-    // Here we latch ADC data when ADC controller gives a RDY pulse and provide the usual
-    // data+ready+valid stream interface for downstream consumers
-
-    // Stream 1 serves ADC1 and is synchronized by ADC1 srate
-    // Stream 2 serves ADC2 and is synchronized by ADC2 srate
-    // Each stream produces 32-bit data words with following layout:
-    // MSB
-    //  31      - 0
-    //  30      - adc1(2)_puls
-    //  29:16   - adc1(2)_data_b
-    //  15      - 0
-    //  14      - adc1(2)_puls
-    //  13:0    - adc1(2)_data_a
-    // LSB
+    wire adc_ddr_clk;
+    wire adc_sclk_ddr_h;
+    wire adc_sclk_ddr_l;
+    wire adc_cs_n;
+    wire [3:0] adc_sdata_ddr_h;
+    wire [3:0] adc_sdata_ddr_l;
     //
-    // Thus, bits 14 and 30 contain timing pulses which can be used to precisely synchronize hardware
-    // adc_puls pulse generators to the data stream
+    wire [7:0] axis_adc_tdata;
+    wire axis_adc_tkeep;
+    wire axis_adc_tvalid;
+    wire axis_adc_tready;
+    wire axis_adc_tlast;
+    //
+    wire [7:0] axis_adc_ts_tdata;
+    wire axis_adc_ts_tkeep;
+    wire axis_adc_ts_tvalid;
+    wire axis_adc_ts_tready;
+    wire axis_adc_ts_tlast;
 
-    // ADC1
-    reg [31:0] adc1_str_data;
-    reg adc1_str_valid;
-    wire adc1_str_ready;
-
-    always @(posedge sys_clk) begin
-        if (sys_rst) begin
-            adc1_str_data <= 32'b0;
-            adc1_str_valid <= 1'b0;
-        end else begin
-            if (adc1_rdy) begin
-                adc1_str_valid <= 1'b1;
-                adc1_str_data <= {1'b0, adc1_puls, adc1_data_b, 1'b0, adc1_puls, adc1_data_a};
-            end else begin
-                if (adc1_str_ready) begin
-                    adc1_str_valid <= 1'b0;
-                end
-            end
-        end
-    end
-
-    // ADC2
-    reg [31:0] adc2_str_data;
-    reg adc2_str_valid;
-    wire adc2_str_ready;
-
-    always @(posedge sys_clk) begin
-        if (sys_rst) begin
-            adc2_str_data <= 32'b0;
-            adc2_str_valid <= 1'b0;
-        end else begin
-            if (adc2_rdy) begin
-                adc2_str_valid <= 1'b1;
-                adc2_str_data <= {1'b0, adc2_puls, adc2_data_b, 1'b0, adc2_puls, adc2_data_a};
-            end else begin
-                if (adc2_str_ready) begin
-                    adc2_str_valid <= 1'b0;
-                end
-            end
-        end
-    end
-
-    // ---------------------------
-    //          ADC FIFOs
-    // ---------------------------
-    localparam ADC_FIFO_ASIZE = 9;
-
-    // ADC1
-    wire adc1_fifo_empty, adc1_fifo_full, adc1_fifo_hfull, adc1_fifo_ovfl, adc1_fifo_udfl;
-    // in stream: adc1_str
-    assign adc1_str_ready = !adc1_fifo_full;
-    // out stream: adc1_wstr
-    wire [31:0] adc1_wstr_data;
-    wire adc1_wstr_valid = !adc1_fifo_empty;
-    wire adc1_wstr_ready;
-
-    syncfifo #(
-        .ADDR_WIDTH(ADC_FIFO_ASIZE),
-        .DATA_WIDTH(32)
-    ) adc1_fifo (
-        .i_clk(sys_clk),
-        .i_rst(sys_rst),
-        // data
-        .i_data(adc1_str_data),
-        .o_data(adc1_wstr_data),
-        // control
-        .i_wr(adc1_str_valid & adc1_str_ready),
-        .i_rd(adc1_wstr_valid & adc1_wstr_ready),
-        // status
-        .o_empty(adc1_fifo_empty),
-        .o_full(adc1_fifo_full),
-        .o_half_full(adc1_fifo_hfull),
-        .o_overflow(adc1_fifo_ovfl),
-        .o_underflow(adc1_fifo_udfl)
-    );
-
-    // OVFL/UDFL flags latch
-    wire adc1_fifo_ovfl_lclr, adc1_fifo_udfl_lclr;
-    reg adc1_fifo_ovfl_lval, adc1_fifo_udfl_lval;
-    always @(posedge sys_clk) begin
-        if (sys_rst) begin
-            adc1_fifo_ovfl_lval <= 1'b0;
-            adc1_fifo_udfl_lval <= 1'b0;
-        end else begin
-            adc1_fifo_ovfl_lval <= adc1_fifo_ovfl | (adc1_fifo_ovfl_lval & ~adc1_fifo_ovfl_lclr);
-            adc1_fifo_udfl_lval <= adc1_fifo_udfl | (adc1_fifo_udfl_lval & ~adc1_fifo_udfl_lclr);
-        end
-    end
-
-    // ADC2
-    wire adc2_fifo_empty, adc2_fifo_full, adc2_fifo_hfull, adc2_fifo_ovfl, adc2_fifo_udfl;
-    // in stream: adc2_str
-    assign adc2_str_ready = !adc2_fifo_full;
-    // out stream: adc2_wstr
-    wire [31:0] adc2_wstr_data;
-    wire adc2_wstr_valid = !adc2_fifo_empty;
-    wire adc2_wstr_ready;
-
-    syncfifo #(
-        .ADDR_WIDTH(ADC_FIFO_ASIZE),
-        .DATA_WIDTH(32)
-    ) adc2_fifo (
-        .i_clk(sys_clk),
-        .i_rst(sys_rst),
-        // data
-        .i_data(adc2_str_data),
-        .o_data(adc2_wstr_data),
-        // control
-        .i_wr(adc2_str_valid & adc2_str_ready),
-        .i_rd(adc2_wstr_valid & adc2_wstr_ready),
-        // status
-        .o_empty(adc2_fifo_empty),
-        .o_full(adc2_fifo_full),
-        .o_half_full(adc2_fifo_hfull),
-        .o_overflow(adc2_fifo_ovfl),
-        .o_underflow(adc2_fifo_udfl)
-    );
-
-    // OVFL/UDFL flags latch
-    wire adc2_fifo_ovfl_lclr, adc2_fifo_udfl_lclr;
-    reg adc2_fifo_ovfl_lval, adc2_fifo_udfl_lval;
-    always @(posedge sys_clk) begin
-        if (sys_rst) begin
-            adc2_fifo_ovfl_lval <= 1'b0;
-            adc2_fifo_udfl_lval <= 1'b0;
-        end else begin
-            adc2_fifo_ovfl_lval <= adc2_fifo_ovfl | (adc2_fifo_ovfl_lval & ~adc2_fifo_ovfl_lclr);
-            adc2_fifo_udfl_lval <= adc2_fifo_udfl | (adc2_fifo_udfl_lval & ~adc2_fifo_udfl_lclr);
-        end
-    end
-
-    // -----------------------------------------------
-    // Word-to-byte ADC stream converters
-    // -----------------------------------------------
-
-    // ADC1 byte stream
-    wire [7:0] adc1_bstr_data;
-    wire adc1_bstr_valid;
-    wire adc1_bstr_ready;
-
-    word_ser #(
-        .WORD_BITS(32)
-    ) adc1_word_ser (
+    adc_pipeline #(
+        .ADC_NUM_CHANNELS(4),
+        .ADC_CHN_WIDTH(14),
+        .ADC_CHN_BYTES(2),
+        .TIMESTAMP_WIDTH(32),
+        .TIMESTAMP_BYTES(4),
+        .FIFO_DEPTH(512)
+    ) u_adc_pipeline (
         .i_clk(sys_clk),
         .i_rst(sys_rst),
         //
-        .i_data(adc1_wstr_data),
-        .i_valid(adc1_wstr_valid),
-        .o_ready(adc1_wstr_ready),
+        .o_adc_ddr_clk(adc_ddr_clk),
+        .o_adc_sclk_ddr_h(adc_sclk_ddr_h),
+        .o_adc_sclk_ddr_l(adc_sclk_ddr_l),
+        .o_adc_cs_n(adc_cs_n),
+        .i_adc_sdata_ddr_h(adc_sdata_ddr_h),
+        .i_adc_sdata_ddr_l(adc_sdata_ddr_l),
         //
-        .o_data(adc1_bstr_data),
-        .o_valid(adc1_bstr_valid),
-        .i_ready(adc1_bstr_ready)
+        .i_timestamp(cyccnt),
+        //
+        .i_chn_en(4'b1011),
+        //
+        .i_sync_acq(adct_srate1),
+        .i_sync_ts(adct_puls1),
+        //
+        .o_m_axis_adc_tdata(axis_adc_tdata),
+        .o_m_axis_adc_tkeep(axis_adc_tkeep),
+        .o_m_axis_adc_tvalid(axis_adc_tvalid),
+        .i_m_axis_adc_tready(axis_adc_tready),
+        .o_m_axis_adc_tlast(axis_adc_tlast),
+        //
+        .o_m_axis_ts_tdata(axis_adc_ts_tdata),
+        .o_m_axis_ts_tkeep(axis_adc_ts_tkeep),
+        .o_m_axis_ts_tvalid(axis_adc_ts_tvalid),
+        .i_m_axis_ts_tready(axis_adc_ts_tready),
+        .o_m_axis_ts_tlast(axis_adc_ts_tlast)
     );
 
-    // ADC2 byte stream
-    wire [7:0] adc2_bstr_data;
-    wire adc2_bstr_valid;
-    wire adc2_bstr_ready;
+    // --------------------------------------------------
+    //     ADC I/O cells
+    // --------------------------------------------------
 
-    word_ser #(
-        .WORD_BITS(32)
-    ) adc2_word_ser (
-        .i_clk(sys_clk),
-        .i_rst(sys_rst),
-        //
-        .i_data(adc2_wstr_data),
-        .i_valid(adc2_wstr_valid),
-        .o_ready(adc2_wstr_ready),
-        //
-        .o_data(adc2_bstr_data),
-        .o_valid(adc2_bstr_valid),
-        .i_ready(adc2_bstr_ready)
+    assign p_adc_cs_n = {2{adc_cs_n}};
+
+    // SCLK
+    SB_IO #(
+        .PIN_TYPE(6'b 0100_00)  // DDR O
+    ) u_adc_sclk_io (
+        .PACKAGE_PIN(p_adc_sclk),
+        // .CLOCK_ENABLE(1'b1),
+        .INPUT_CLK(adc_ddr_clk),
+        .OUTPUT_CLK(adc_ddr_clk),
+        // .OUTPUT_ENABLE(1'b1),
+        .D_OUT_0(adc_sclk_ddr_h),   // latch @ posedge clk, out if clk=1
+        .D_OUT_1(adc_sclk_ddr_l)    // latch @ negedge clk, out if clk=0
     );
+
+    // SDATA
+    genvar iiadc;
+    generate
+        for (iiadc = 0; iiadc < 4; iiadc = iiadc + 1) begin
+            SB_IO #(
+                .PIN_TYPE(6'b 0000_00)  // DDR I
+            ) u_adc_sdata_io (
+                .PACKAGE_PIN(p_adc_sdata[iiadc]),
+                // .CLOCK_ENABLE(1'b1),
+                .INPUT_CLK(adc_ddr_clk),
+                .OUTPUT_CLK(adc_ddr_clk),
+                .D_IN_0(adc_sdata_ddr_l[iiadc]),    // latch @ posedge clk
+                .D_IN_1(adc_sdata_ddr_h[iiadc])     // latch @ negedge clk
+            );
+        end
+    endgenerate
 
     // ------------------------
     // DAC driver
@@ -657,10 +504,11 @@ module top (
     wire [WB_DATA_WIDTH-1:0] wbm_cp_rdat;
 
     // Wishbone port Tx command stream (outgoing data)
-    wire wbcon_tx_tvalid;
-    wire wbcon_tx_tready;
-    wire [7:0] wbcon_tx_tdata;
-    wire wbcon_tx_tlast;
+    wire axis_wbcon_tx_tvalid;
+    wire axis_wbcon_tx_tready;
+    wire [7:0] axis_wbcon_tx_tdata;
+    wire axis_wbcon_tx_tkeep;
+    wire axis_wbcon_tx_tlast;
 
     // --------------------------------------
     // Wishbone master: control port
@@ -685,21 +533,17 @@ module top (
         .o_wb_sel(wbm_cp_sel),
         .i_wb_dat(wbm_cp_rdat),
         // rx
-        .i_rx_axis_tvalid(cp_rx_tvalid),
-        .o_rx_axis_tready(cp_rx_tready),
-        .i_rx_axis_tdata(cp_rx_tdata),
-        .i_rx_axis_tkeep(cp_rx_tkeep),
-        .i_rx_axis_tlast(cp_rx_tlast),
+        .i_rx_axis_tvalid(axis_cp_rx_tvalid),
+        .o_rx_axis_tready(axis_cp_rx_tready),
+        .i_rx_axis_tdata(axis_cp_rx_tdata),
+        .i_rx_axis_tkeep(axis_cp_rx_tkeep),
+        .i_rx_axis_tlast(axis_cp_rx_tlast),
         // tx
-        // .o_tx_axis_tvalid(wbcon_tx_tvalid),
-        // .i_tx_axis_tready(wbcon_tx_tready),
-        // .o_tx_axis_tdata(wbcon_tx_tdata),
-        // .o_tx_axis_tlast(wbcon_tx_tlast)
-        .o_tx_axis_tvalid(cp_tx_tvalid),
-        .i_tx_axis_tready(cp_tx_tready),
-        .o_tx_axis_tdata(cp_tx_tdata),
-        .o_tx_axis_tkeep(cp_tx_tkeep),
-        .o_tx_axis_tlast(cp_tx_tlast)
+        .o_tx_axis_tvalid(axis_wbcon_tx_tvalid),
+        .i_tx_axis_tready(axis_wbcon_tx_tready),
+        .o_tx_axis_tdata(axis_wbcon_tx_tdata),
+        .o_tx_axis_tkeep(axis_wbcon_tx_tkeep),
+        .o_tx_axis_tlast(axis_wbcon_tx_tlast)
     );
 
     // --------------------------------------
@@ -739,40 +583,152 @@ module top (
         .o_pdet_con_en(csr_pdet_en),
         .o_pdet_con_eclk2_slow(csr_pdet_eclk2_slow),
         // REGS: ADCT
-        .o_adct_con_srate1_en(csr_adct_srate1_en),
-        .o_adct_con_srate2_en(csr_adct_srate2_en),
-        .o_adct_con_puls1_en(csr_adct_puls1_en),
-        .o_adct_con_puls2_en(csr_adct_puls2_en),
-        .o_adct_srate1_psc_div_val(csr_adct_srate1_psc_div),
-        .o_adct_srate2_psc_div_val(csr_adct_srate2_psc_div),
-        .o_adct_puls1_psc_div_val(csr_adct_puls1_psc_div),
-        .o_adct_puls2_psc_div_val(csr_adct_puls2_psc_div),
-        .o_adct_puls1_dly_val(csr_adct_puls1_dly),
-        .o_adct_puls2_dly_val(csr_adct_puls2_dly),
-        .o_adct_puls1_pwidth_val(csr_adct_puls1_pwidth),
-        .o_adct_puls2_pwidth_val(csr_adct_puls2_pwidth),
-        // REGS: ADC CON
-        .o_adc_con_adc1_en(csr_adc_adc1_en),
-        .o_adc_con_adc2_en(csr_adc_adc2_en),
+        // .o_adct_con_srate1_en(csr_adct_srate1_en),
+        // .o_adct_con_srate2_en(csr_adct_srate2_en),
+        // .o_adct_con_puls1_en(csr_adct_puls1_en),
+        // .o_adct_con_puls2_en(csr_adct_puls2_en),
+        // .o_adct_srate1_psc_div_val(csr_adct_srate1_psc_div),
+        // .o_adct_srate2_psc_div_val(csr_adct_srate2_psc_div),
+        // .o_adct_puls1_psc_div_val(csr_adct_puls1_psc_div),
+        // .o_adct_puls2_psc_div_val(csr_adct_puls2_psc_div),
+        // .o_adct_puls1_dly_val(csr_adct_puls1_dly),
+        // .o_adct_puls2_dly_val(csr_adct_puls2_dly),
+        // .o_adct_puls1_pwidth_val(csr_adct_puls1_pwidth),
+        // .o_adct_puls2_pwidth_val(csr_adct_puls2_pwidth),
+        // // REGS: ADC CON
+        // .o_adc_con_adc1_en(csr_adc_adc1_en),
+        // .o_adc_con_adc2_en(csr_adc_adc2_en),
         // REGS: ADC FIFO1
-        .i_adc_fifo1_sts_empty(adc1_fifo_empty),
-        .i_adc_fifo1_sts_full(adc1_fifo_full),
-        .i_adc_fifo1_sts_hfull(adc1_fifo_hfull),
-        .i_adc_fifo1_sts_ovfl(adc1_fifo_ovfl_lval),
-        .o_adc_fifo1_sts_ovfl_read_trigger(adc1_fifo_ovfl_lclr),
-        .i_adc_fifo1_sts_udfl(adc1_fifo_udfl_lval),
-        .o_adc_fifo1_sts_udfl_read_trigger(adc1_fifo_udfl_lclr),
+        .i_adc_fifo1_sts_empty(1'b0),
+        .i_adc_fifo1_sts_full(1'b0),
+        .i_adc_fifo1_sts_hfull(1'b0),
+        .i_adc_fifo1_sts_ovfl(1'b0),
+        // .o_adc_fifo1_sts_ovfl_read_trigger(adc1_fifo_ovfl_lclr),
+        .i_adc_fifo1_sts_udfl(1'b0),
+        // .o_adc_fifo1_sts_udfl_read_trigger(adc1_fifo_udfl_lclr),
         // REGS: ADC FIFO2
-        .i_adc_fifo2_sts_empty(adc2_fifo_empty),
-        .i_adc_fifo2_sts_full(adc2_fifo_full),
-        .i_adc_fifo2_sts_hfull(adc2_fifo_hfull),
-        .i_adc_fifo2_sts_ovfl(adc2_fifo_ovfl_lval),
-        .o_adc_fifo2_sts_ovfl_read_trigger(adc2_fifo_ovfl_lclr),
-        .i_adc_fifo2_sts_udfl(adc2_fifo_udfl_lval),
-        .o_adc_fifo2_sts_udfl_read_trigger(adc2_fifo_udfl_lclr),
+        .i_adc_fifo2_sts_empty(1'b0),
+        .i_adc_fifo2_sts_full(1'b0),
+        .i_adc_fifo2_sts_hfull(1'b0),
+        .i_adc_fifo2_sts_ovfl(1'b0),
+        // .o_adc_fifo2_sts_ovfl_read_trigger(adc2_fifo_ovfl_lclr),
+        .i_adc_fifo2_sts_udfl(1'b0),
+        // .o_adc_fifo2_sts_udfl_read_trigger(adc2_fifo_udfl_lclr),
         // REGS: FTUN
         .o_ftun_vtune_set_val(csr_ftun_vtune_val),
         .o_ftun_vtune_set_val_write_trigger(csr_ftun_vtune_write)
+    );
+
+    // ----------------------------------
+    // Control port Tx AXI-S multiplexer
+    // ----------------------------------
+    axis_arb_mux #(
+        .S_COUNT(3),
+        .DATA_WIDTH(8),
+        .KEEP_ENABLE(1),
+        .KEEP_WIDTH(1),
+        .ID_ENABLE(1),
+        .S_ID_WIDTH(8),
+        .M_ID_WIDTH(8),
+        .DEST_ENABLE(0),
+        .USER_ENABLE(0),
+        .LAST_ENABLE(1),
+        .UPDATE_TID(0),
+        .ARB_TYPE_ROUND_ROBIN(0),
+        .ARB_LSB_HIGH_PRIORITY(1)
+    ) u_cp_tx_mux (
+        .clk(sys_clk),
+        .rst(sys_rst),
+        //
+        .s_axis_tdata({
+            axis_adc_tdata,
+            axis_adc_ts_tdata,
+            axis_wbcon_tx_tdata
+            }),
+        .s_axis_tkeep({
+            axis_adc_tkeep,
+            axis_adc_ts_tkeep,
+            axis_wbcon_tx_tkeep
+            }),
+        .s_axis_tvalid({
+            axis_adc_tvalid,
+            axis_adc_ts_tvalid,
+            axis_wbcon_tx_tvalid
+            }),
+        .s_axis_tready({
+            axis_adc_tready,
+            axis_adc_ts_tready,
+            axis_wbcon_tx_tready
+            }),
+        .s_axis_tlast({
+            axis_adc_tlast,
+            axis_adc_ts_tlast,
+            axis_wbcon_tx_tlast
+            }),
+        .s_axis_tid({
+            8'h03,
+            8'h02,
+            8'h01
+            }),
+        //
+        .m_axis_tdata(axis_cp_tx_tdata),
+        .m_axis_tkeep(axis_cp_tx_tkeep),
+        .m_axis_tvalid(axis_cp_tx_tvalid),
+        .m_axis_tready(axis_cp_tx_tready),
+        .m_axis_tlast(axis_cp_tx_tlast),
+        .m_axis_tid(axis_cp_tx_tid)
+    );
+
+
+    // ----------------------------------
+    // Control port SLIP / AXI-S streams
+    // ----------------------------------
+
+    // Rx
+    wire axis_cp_rx_tvalid;
+    wire axis_cp_rx_tready;
+    wire [7:0] axis_cp_rx_tdata;
+    wire axis_cp_rx_tkeep;
+    wire axis_cp_rx_tlast;
+    // Tx
+    wire axis_cp_tx_tvalid;
+    wire axis_cp_tx_tready;
+    wire [7:0] axis_cp_tx_tdata;
+    wire axis_cp_tx_tkeep;
+    wire axis_cp_tx_tlast;
+    wire [7:0] axis_cp_tx_tid;
+
+    slip_axis_decoder_noid #(
+    ) u_slip_axis_dec (
+        .i_clk(sys_clk),
+        .i_rst(sys_rst),
+        //
+        .i_s_axis_tvalid(sys_ft_rx_valid),
+        .o_s_axis_tready(sys_ft_rx_ready),
+        .i_s_axis_tdata(sys_ft_rx_data),
+        //
+        .o_m_axis_tvalid(axis_cp_rx_tvalid),
+        .i_m_axis_tready(axis_cp_rx_tready),
+        .o_m_axis_tdata(axis_cp_rx_tdata),
+        .o_m_axis_tkeep(axis_cp_rx_tkeep),
+        .o_m_axis_tlast(axis_cp_rx_tlast)
+    );
+
+    slip_axis_encoder #(
+    ) u_slip_axis_enc (
+        .i_clk(sys_clk),
+        .i_rst(sys_rst),
+        //
+        .i_s_axis_tvalid(axis_cp_tx_tvalid),
+        .o_s_axis_tready(axis_cp_tx_tready),
+        .i_s_axis_tdata(axis_cp_tx_tdata),
+        .i_s_axis_tkeep(axis_cp_tx_tkeep),
+        .i_s_axis_tlast(axis_cp_tx_tlast),
+        .i_s_axis_tid(axis_cp_tx_tid),
+        //
+        .o_m_axis_tvalid(sys_ft_tx_valid),
+        .i_m_axis_tready(sys_ft_tx_ready),
+        .o_m_axis_tdata(sys_ft_tx_data)
     );
 
     // -------------------------------------------
@@ -785,150 +741,6 @@ module top (
     wire [7:0] sys_ft_tx_data;
     wire sys_ft_tx_valid;
     wire sys_ft_tx_ready;
-
-    // ----------------------------------
-    // Control port SLIP / AXI-S streams
-    // ----------------------------------
-
-    wire cp_rx_tvalid;
-    wire cp_rx_tready;
-    wire [7:0] cp_rx_tdata;
-    wire cp_rx_tkeep;
-    wire cp_rx_tlast;
-
-    slip_axis_decoder_noid #(
-    ) u_slip_axis_dec (
-        .i_clk(sys_clk),
-        .i_rst(sys_rst),
-        //
-        .i_s_axis_tvalid(sys_ft_rx_valid),
-        .o_s_axis_tready(sys_ft_rx_ready),
-        .i_s_axis_tdata(sys_ft_rx_data),
-        //
-        .o_m_axis_tvalid(cp_rx_tvalid),
-        .i_m_axis_tready(cp_rx_tready),
-        .o_m_axis_tdata(cp_rx_tdata),
-        .o_m_axis_tkeep(cp_rx_tkeep),
-        .o_m_axis_tlast(cp_rx_tlast)
-    );
-
-    wire cp_tx_tvalid;
-    wire cp_tx_tready;
-    wire [7:0] cp_tx_tdata;
-    wire cp_tx_tkeep;
-    wire cp_tx_tlast;
-    wire [7:0] cp_tx_tid = 8'hAA;
-
-    slip_axis_encoder #(
-    ) u_slip_axis_enc (
-        .i_clk(sys_clk),
-        .i_rst(sys_rst),
-        //
-        .i_s_axis_tvalid(cp_tx_tvalid),
-        .o_s_axis_tready(cp_tx_tready),
-        .i_s_axis_tdata(cp_tx_tdata),
-        .i_s_axis_tkeep(cp_tx_tkeep),
-        .i_s_axis_tlast(cp_tx_tlast),
-        .i_s_axis_tid(cp_tx_tid),
-        //
-        .o_m_axis_tvalid(sys_ft_tx_valid),
-        .i_m_axis_tready(sys_ft_tx_ready),
-        .o_m_axis_tdata(sys_ft_tx_data)
-    );
-
-    // reg [3:0] dup = 0;
-    // reg [7:0] xd;
-
-    // always @(posedge sys_clk) begin
-    //     if (sys_ft_rx_valid && sys_ft_rx_ready) begin
-    //         xd <= sys_ft_rx_data;
-    //         dup <= 3;
-    //     end else if (sys_ft_tx_valid && sys_ft_tx_ready) begin
-    //         dup <= dup - 1;
-    //     end
-    // end
-
-    // assign sys_ft_tx_data = xd;
-    // assign sys_ft_tx_valid = (dup != 0);
-    // assign sys_ft_rx_ready = (dup == 0);
-
-
-
-    // assign sys_ft_tx_data = sys_ft_rx_data;
-    // assign sys_ft_tx_valid = sys_ft_rx_valid;
-    // assign sys_ft_rx_ready = sys_ft_tx_ready;
-
-
-
-    // // ---- RX ----
-
-    // assign wbcon_rx_data = sys_ft_rx_data;
-    // assign wbcon_rx_valid = sys_ft_rx_valid;
-    // assign sys_ft_rx_ready = wbcon_rx_ready;
-
-    // // ---- TX ----
-
-    // // Index allocation for multiplexed Tx streams:
-    // //  0 - control port (wbcon_tx)
-    // //  1 - ADC1 data stream
-    // //  2 - ADC2 data stream
-    // //  3 - Phase detector measurement
-
-    // // TODO - connect this to CSR?
-    // wire cpstr_send_stridx = 1'b0;
-
-    // cpstr_mgr_tx #(
-    //     .NUM_STREAMS(4),
-    //     .MAX_BURST(32)
-    // ) cpstr_mgr_tx (
-    //     .i_clk(sys_clk),
-    //     .i_rst(sys_rst),
-    //     //
-    //     .o_data(cpstr_tx_buf_data),
-    //     .o_valid(cpstr_tx_buf_valid),
-    //     .i_ready(cpstr_tx_buf_ready),
-    //     //
-    //     .i_data({
-    //         pdet_bstr_data,
-    //         adc2_bstr_data,
-    //         adc1_bstr_data,
-    //         wbcon_tx_data}),
-    //     .i_valid({
-    //         pdet_bstr_valid,
-    //         adc2_bstr_valid,
-    //         adc1_bstr_valid,
-    //         wbcon_tx_valid}),
-    //     .o_ready({
-    //         pdet_bstr_ready,
-    //         adc2_bstr_ready,
-    //         adc1_bstr_ready,
-    //         wbcon_tx_ready}),
-    //     //
-    //     .i_send_stridx(cpstr_send_stridx)
-    // );
-
-    // // ---------------------------------------
-    // // Buffer Tx stream to improve timing
-    // // ---------------------------------------
-
-    // // TODO: review this, it smells
-    
-    // wire [7:0] cpstr_tx_buf_data;
-    // wire cpstr_tx_buf_valid;
-    // wire cpstr_tx_buf_ready;
-
-    // stream_buf cpstr_tx_buf (
-    //     .i_clk(sys_clk),
-    //     .i_rst(sys_rst),
-    //     //
-    //     .o_data(sys_ft_tx_data),
-    //     .o_valid(sys_ft_tx_valid),
-    //     .i_ready(sys_ft_tx_ready),
-    //     //
-    //     .i_data(cpstr_tx_buf_data),
-    //     .i_valid(cpstr_tx_buf_valid),
-    //     .o_ready(cpstr_tx_buf_ready)
-    // );
 
     // ===============================================================================================================
     // =========================                                                             =========================
@@ -1097,7 +909,7 @@ module top (
     // CLK OUT
     // ------------------------
     assign p_clk_out_sel = 1'b1;
-    assign p_clk_out = ~(adc1_fifo_full | adc2_fifo_full); //sys_clk;
+    assign p_clk_out = adct_srate1;
 
     // ------------------------
     // LEDs

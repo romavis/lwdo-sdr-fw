@@ -18,14 +18,14 @@ set_io p_led_in3_g 33
 
 # ADC1-2
 set_io p_adc_sclk 15
-set_io p_adc1_sda 16
-set_io p_adc1_sdb 17
-set_io p_adc1_cs_n 18
+set_io p_adc_sdata[0] 16
+set_io p_adc_sdata[1] 17
+set_io p_adc_cs_n[0] 18
 
-set_io p_adc_sclk_gbin 20
-set_io p_adc2_sda 21
-set_io p_adc2_sdb 22
-set_io p_adc2_cs_n 23
+#set_io p_adc_sclk_gbin 20
+set_io p_adc_sdata[2] 21
+set_io p_adc_sdata[3] 22
+set_io p_adc_cs_n[1] 23
 
 # External I/O
 set_io p_extio[8] 34
@@ -71,12 +71,12 @@ set_io p_ft_fifo_d[1] 88
 set_io p_ft_fifo_d[0] 90
 
 # QSPI flash
-set_io p_qspi_sclk 70
-set_io p_qspi_cs 71
-set_io p_qspi_mosi_io0 67
-set_io p_qspi_miso_io1 68
-set_io p_qspi_io2 62
-set_io p_qspi_io3 61
+#set_io p_qspi_sclk 70
+#set_io p_qspi_cs 71
+#set_io p_qspi_mosi_io0 67
+#set_io p_qspi_miso_io1 68
+#set_io p_qspi_io2 62
+#set_io p_qspi_io3 61
 
 # TODO: SRAM
 
@@ -88,5 +88,4 @@ set_io p_qspi_io3 61
 set_frequency p_clk_20mhz_gbin1         20
 set_frequency p_clk_20mhz_gbin2         20
 set_frequency p_clk_ref_in              20
-set_frequency p_adc_sclk_gbin           80
 set_frequency p_ft_fifo_clkout          60
