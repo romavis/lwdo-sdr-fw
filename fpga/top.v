@@ -23,9 +23,9 @@ module top (
     // System clocks
     input p_clk_20mhz_gbin1,    // VCTCXO clock, drives SB_PLL40_PAD
     input p_clk_20mhz_gbin2,    // same VCTCXO clock for non-PLL use
-    output p_clk_out,
     input p_clk_ref_in,
     output p_clk_out_sel,
+    output p_clk_out,
     // FTDI GPIO
     input p_ft_io1,
     input p_ft_io2,
@@ -273,8 +273,14 @@ module top (
     //                  Timestamp counter
     // --------------------------------------------------
 
-    // TODO
-    wire [31:0] cyccnt = 32'hAABBCCDD;
+    reg [31:0] cyccnt;
+    always @(posedge sys_clk or posedge sys_rst) begin
+        if (sys_rst) begin
+            cyccnt <= 1'd0;
+        end else begin
+            cyccnt <= cyccnt + 1'd1;
+        end
+    end
 
     // --------------------------------------------------
     //     ADC - Analog-to-digital converters
@@ -401,84 +407,33 @@ module top (
     );
 
     // ------------------------
-    // Phase detector
+    // TDC (phase detector)
     // ------------------------
 
-    // ECLK1: 20 MHz onboard clock
-    // ECLK2: CLK_IN connector
-    // CLK: sys_clk (80MHz)
+    wire [7:0] axis_tdc_tdata;
+    wire axis_tdc_tkeep;
+    wire axis_tdc_tvalid;
+    wire axis_tdc_tready;
+    wire axis_tdc_tlast;
 
-    // N1=99999 results in max comparison frequency of 100 Hz
-    // Returned measurement range is 0 to 800000 ( f(sys_clk)/100 )
-    // 20 bits is enough for that range
-    //
-    // N2=49999 allows best performance with 10MHz external reference,
-    // while 1,2,5,20 MHz can also be used
-
-    localparam PDET_BITS = 20;
-    localparam PDET_N1 = 99_999;
-    localparam PDET_N2 = 49_999;
-
-    wire csr_pdet_en;
-    wire csr_pdet_eclk2_slow;
-    wire [PDET_BITS-1:0] pdet_count;
-    wire pdet_count_rdy;
-
-    phase_det #(
-        .TIC_BITS(PDET_BITS),
-        .DIV_N1(PDET_N1),
-        .DIV_N2(PDET_N2)
-    ) pdet (
+    tdc_pipeline #(
+        .COUNTER_WIDTH(32),
+        .DIV_GATE(2000000),         // 20 MHz -> 10 Hz
+        .DIV_MEAS_FAST(100000)      // 1 MHz -> 10 Hz
+    ) u_tdc_pipeline (
         .i_clk(sys_clk),
         .i_rst(sys_rst),
         //
-        .i_en(csr_pdet_en),
-        .i_eclk2_slow(csr_pdet_eclk2_slow),
+        .o_m_axis_tdata(axis_tdc_tdata),
+        .o_m_axis_tkeep(axis_tdc_tkeep),
+        .o_m_axis_tvalid(axis_tdc_tvalid),
+        .i_m_axis_tready(axis_tdc_tready),
+        .o_m_axis_tlast(axis_tdc_tlast),
         //
-        .o_count(pdet_count),
-        .o_count_rdy(pdet_count_rdy),
+        .i_clk_gate(p_clk_20mhz_gbin2),
+        .i_clk_meas(p_clk_ref_in),
         //
-        .i_eclk1(p_clk_20mhz_gbin2),
-        .i_eclk2(p_clk_ref_in)
-    );
-
-    // Stream interface
-    reg [31:0] pdet_wstr_data;
-    reg pdet_wstr_valid;
-    wire pdet_wstr_ready;
-
-    always @(posedge sys_clk or posedge sys_rst)
-        if (sys_rst) begin
-            pdet_wstr_data <= 32'b0;
-            pdet_wstr_valid <= 1'b0;
-        end else begin
-            if (pdet_count_rdy) begin
-                pdet_wstr_valid <= 1'b1;
-                pdet_wstr_data <= 32'd0;
-                pdet_wstr_data[PDET_BITS-1:0] <= pdet_count;
-            end else if (pdet_wstr_ready) begin
-                pdet_wstr_valid <= 1'b0;
-            end
-        end
-
-    // Byte serializer
-    wire [7:0] pdet_bstr_data;
-    wire pdet_bstr_valid;
-    wire pdet_bstr_ready;
-
-    word_ser #(
-        .WORD_BITS(32)
-    ) pdet_word_ser (
-        .i_clk(sys_clk),
-        .i_rst(sys_rst),
-        //
-        .i_data(pdet_wstr_data),
-        .i_valid(pdet_wstr_valid),
-        .o_ready(pdet_wstr_ready),
-        //
-        .o_data(pdet_bstr_data),
-        .o_valid(pdet_bstr_valid),
-        .i_ready(pdet_bstr_ready)
+        .i_meas_fast(1'b1)
     );
 
     // ------------------------
@@ -557,8 +512,8 @@ module top (
         .SYS_PLL_DIVR_INITIAL_VALUE(SYS_PLL_DIVR),
         .SYS_PLL_DIVF_INITIAL_VALUE(SYS_PLL_DIVF),
         .SYS_PLL_DIVQ_INITIAL_VALUE(SYS_PLL_DIVQ),
-        .PDET_N1_VAL_INITIAL_VALUE(PDET_N1),
-        .PDET_N2_VAL_INITIAL_VALUE(PDET_N2)
+        .PDET_N1_VAL_INITIAL_VALUE(1),
+        .PDET_N2_VAL_INITIAL_VALUE(1)
     ) lwdo_regs_i (
         // SYSCON
         .i_clk(sys_clk),
@@ -580,8 +535,8 @@ module top (
         // REGS: SYS
         .o_sys_con_sys_rst(csr_sys_rst),
         // REGS: PDET
-        .o_pdet_con_en(csr_pdet_en),
-        .o_pdet_con_eclk2_slow(csr_pdet_eclk2_slow),
+        // .o_pdet_con_en(csr_pdet_en),
+        // .o_pdet_con_eclk2_slow(csr_pdet_eclk2_slow),
         // REGS: ADCT
         // .o_adct_con_srate1_en(csr_adct_srate1_en),
         // .o_adct_con_srate2_en(csr_adct_srate2_en),
@@ -623,7 +578,7 @@ module top (
     // Control port Tx AXI-S multiplexer
     // ----------------------------------
     axis_arb_mux #(
-        .S_COUNT(3),
+        .S_COUNT(4),
         .DATA_WIDTH(8),
         .KEEP_ENABLE(1),
         .KEEP_WIDTH(1),
@@ -634,7 +589,7 @@ module top (
         .USER_ENABLE(0),
         .LAST_ENABLE(1),
         .UPDATE_TID(0),
-        .ARB_TYPE_ROUND_ROBIN(0),
+        .ARB_TYPE_ROUND_ROBIN(1),
         .ARB_LSB_HIGH_PRIORITY(1)
     ) u_cp_tx_mux (
         .clk(sys_clk),
@@ -643,32 +598,38 @@ module top (
         .s_axis_tdata({
             axis_adc_tdata,
             axis_adc_ts_tdata,
+            axis_tdc_tdata,
             axis_wbcon_tx_tdata
             }),
         .s_axis_tkeep({
             axis_adc_tkeep,
             axis_adc_ts_tkeep,
+            axis_tdc_tkeep,
             axis_wbcon_tx_tkeep
             }),
         .s_axis_tvalid({
             axis_adc_tvalid,
             axis_adc_ts_tvalid,
+            axis_tdc_tvalid,
             axis_wbcon_tx_tvalid
             }),
         .s_axis_tready({
             axis_adc_tready,
             axis_adc_ts_tready,
+            axis_tdc_tready,
             axis_wbcon_tx_tready
             }),
         .s_axis_tlast({
             axis_adc_tlast,
             axis_adc_ts_tlast,
+            axis_tdc_tlast,
             axis_wbcon_tx_tlast
             }),
         .s_axis_tid({
-            8'h03,
-            8'h02,
-            8'h01
+            8'h02,  // ADC
+            8'h03,  // ADC TS
+            8'h04,  // TDC
+            8'h01   // WBCON
             }),
         //
         .m_axis_tdata(axis_cp_tx_tdata),
