@@ -57,7 +57,6 @@ module wbcon_exec #(
     assign wb_resp_ack = o_wb_cyc && (i_wb_ack | i_wb_err | i_wb_rty);
 
     // wbcon_rx / tx handshakes
-    wire cmd_ack = i_cmd_tvalid && o_cmd_tready;
     wire cres_ack = o_cres_tvalid && i_cres_tready;
 
     // State machine
@@ -83,7 +82,7 @@ module wbcon_exec #(
             // Idle: wait for incoming CMD and process it when it comes
             STATE_IDLE: begin
                 if (i_cmd_tvalid) begin
-                    if (i_cmd_op_write_word || o_cres_op_read_word) begin
+                    if (i_cmd_op_write_word || i_cmd_op_read_word) begin
                         state_next = STATE_AWAIT_WB_REQ;
                     end else begin
                         state_next = STATE_AWAIT_CRES_ACK;
@@ -195,6 +194,8 @@ module wbcon_exec #(
     always @(posedge i_clk or posedge i_rst) begin
         if (i_rst) begin
             wb_rdata_reg <= 1'b0;
+            wb_err_reg <= 1'b0;
+            wb_rty_reg <= 1'b0;
         end else begin
             if (wb_resp_ack) begin
                 wb_rdata_reg <= i_wb_dat;
