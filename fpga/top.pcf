@@ -89,3 +89,5 @@ set_frequency p_clk_20mhz_gbin1         20
 set_frequency p_clk_20mhz_gbin2         20
 set_frequency p_clk_ref_in              20
 set_frequency p_ft_fifo_clkout          60
+# Nets
+set_frequency tdc_clk                   92

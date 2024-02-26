@@ -66,17 +66,17 @@ module top (
     //                  SYS PLL
     //
     // input: 20MHz
-    // output: 80MHz
-    // (determined by parameters below)
+    // Output: 80 MHz
+    //
     // ------------------------------------------
 
     // PLL params configured here & made available via read-only CSRs
     localparam [3:0] SYS_PLL_DIVR = 4'd0;
     localparam [6:0] SYS_PLL_DIVF = 7'd31;
     localparam [2:0] SYS_PLL_DIVQ = 3'd3;
-    localparam [2:0] SYS_PLL_FILTER_RANGE = 3'd3;
+    localparam [2:0] SYS_PLL_FILTER_RANGE = 3'd2;
 
-    wire sys_pll_out;
+    wire sys_clk;
     wire sys_pll_lock;
 
     SB_PLL40_PAD #(
@@ -86,13 +86,68 @@ module top (
 		.DIVQ(SYS_PLL_DIVQ),
 		.FILTER_RANGE(SYS_PLL_FILTER_RANGE),
         .PLLOUT_SELECT("GENCLK")
-    ) sys_pll (
-        .PACKAGEPIN(p_clk_20mhz_gbin1),  // 20 MHz
-        .PLLOUTCORE(sys_pll_out),
+    ) u_sys_pll (
+        .PACKAGEPIN(p_clk_20mhz_gbin1),
+        .PLLOUTCORE(sys_clk),
         .LOCK(sys_pll_lock),
         .RESETB(1'b1),
         .BYPASS(1'b0)
     );
+
+
+    // ------------------------------------------
+    //              TDC COUNTER PLL
+    //
+    // input: 80MHz (from SYS PLL)
+    // output: 80~92MHz when EXT_DIV is 7~8
+    //
+    // This PLL uses time-variable external divider to introduce huge jitter
+    // into tdc_clk for the purpose of TDC dithering.
+    //
+    // ------------------------------------------
+
+    // PLL params configured here & made available via read-only CSRs
+    localparam [3:0] TDC_PLL_DIVR = 4'd6;
+    localparam [6:0] TDC_PLL_DIVF = 7'd0;
+    localparam [2:0] TDC_PLL_DIVQ = 3'd3;
+    localparam [2:0] TDC_PLL_FILTER_RANGE = 3'd1;
+
+    wire tdc_clk;
+    wire tdc_pll_fb;    // external feedback
+    wire tdc_pll_lock;  // this PLL will never lock! this is by design..
+
+    SB_PLL40_CORE #(
+        .FEEDBACK_PATH("EXTERNAL"),
+		.DIVR(TDC_PLL_DIVR),
+		.DIVF(TDC_PLL_DIVF),
+		.DIVQ(TDC_PLL_DIVQ),
+		.FILTER_RANGE(TDC_PLL_FILTER_RANGE),
+        .PLLOUT_SELECT("GENCLK")
+    ) u_tdc_pll (
+        .REFERENCECLK(sys_clk),
+        .PLLOUTCORE(tdc_clk),
+        .EXTFEEDBACK(tdc_pll_fb),
+        .LOCK(tdc_pll_lock),
+        .RESETB(1'b1),
+        .BYPASS(1'b0)
+    );
+
+    // External divider
+    reg [3:0] tdc_pll_ediv;
+    reg [11:0] tdc_pll_sdiv;
+    always @(posedge tdc_clk) begin
+        if (tdc_pll_ediv) begin
+            tdc_pll_ediv <= tdc_pll_ediv - 1'd1;
+        end else begin
+            if (tdc_pll_sdiv[0]) begin
+                tdc_pll_ediv <= 4'd6;
+            end else begin
+                tdc_pll_ediv <= 4'd7;
+            end
+            tdc_pll_sdiv <= tdc_pll_sdiv + 1'd1;
+        end
+    end
+    assign tdc_pll_fb = !tdc_pll_ediv;
 
 
     // ===============================================================================================================
@@ -417,12 +472,14 @@ module top (
     wire axis_tdc_tlast;
 
     tdc_pipeline #(
-        .COUNTER_WIDTH(32),
+        .COUNTER_WIDTH(24),
         .DIV_GATE(2000000),         // 20 MHz -> 10 Hz
         .DIV_MEAS_FAST(100000)      // 1 MHz -> 10 Hz
     ) u_tdc_pipeline (
         .i_clk(sys_clk),
         .i_rst(sys_rst),
+        //
+        .i_clk_tdc(tdc_clk),
         //
         .o_m_axis_tdata(axis_tdc_tdata),
         .o_m_axis_tkeep(axis_tdc_tkeep),
@@ -870,7 +927,7 @@ module top (
     // CLK OUT
     // ------------------------
     assign p_clk_out_sel = 1'b1;
-    assign p_clk_out = adct_srate1;
+    assign p_clk_out = ~tdc_clk;
 
     // ------------------------
     // LEDs
