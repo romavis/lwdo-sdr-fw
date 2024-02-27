@@ -4,14 +4,14 @@
 
 register_blocks:
   - name: lwdo_regs # this is the name of generated verilog module
-    byte_size: 512  # up to 256 * 16-bit registers
+    byte_size: 1024
 
     register_files:
     # ------------------------------------------------------
     #                 SYS - system control
     # ------------------------------------------------------
     - name: sys
-      offset_address: 0x00
+      offset_address: 0x0000
 
       registers:
       - name: magic
@@ -67,296 +67,234 @@ register_blocks:
           initial_value: { default: 0 }
 
     # ------------------------------------------------------
-    #                 PDET - phase detector
+    #           HWTIME - hardware time counter
     # ------------------------------------------------------
-    - name: pdet
-      offset_address: 0x20
+    - name: hwtime
+      offset_address: 0x0020
+      comment: "HWTIME counter"
+
+      registers:
+      - name: cnt
+
+        bit_fields:
+        - name: cnt
+          comment: "HWTIME counter value"
+          bit_assignment: { width: 32 }
+          type: ro
+
+    # ------------------------------------------------------
+    #           TDC - Time-to-Digital converter
+    # ------------------------------------------------------
+    - name: tdc
+      offset_address: 0x0040
 
       registers:
       - name: con
-        comment: "Phase detector control"
+        comment: "TDC control"
 
         bit_fields:
         - name: en
-          comment: "Enable phase detector"
+          comment: "Enable TDC"
           bit_assignment: { width: 1 }
           type: rw
           initial_value: 0
 
-        - name: eclk2_slow
-          comment: "ECLK2 is slow (1Hz ~ 10Hz). If set, N2 divider is bypassed and fTIC2=fECLK2"
+        - name: clk_meas_fast
+          comment: "Set this when clk_meas is fast (more than ~1 kHz)"
           bit_assignment: { width: 1 }
           type: rw
           initial_value: 0
 
-      - name: n1
-        comment: "N1 divider"
+        - name: gate_fdec
+          comment: "Set this to decrease the frequency of divided clk_gate (increases clk_gate divider)"
+          bit_assignment: { width: 1 }
+          type: rw
+          initial_value: 0
+
+        - name: gate_finc
+          comment: "Set this to increase the frequency of divided clk_gate (decreases clk_gate divider)"
+          bit_assignment: { width: 1 }
+          type: rw
+          initial_value: 0
+
+      - name: div_gate
 
         bit_fields:
         - name: val
-          comment: "Clock frequency division factor for N1 divider. fTIC1=fECLK1/(2*(val+1))"
+          comment: "Divider for clk_gate"
           bit_assignment: { width: 32 }
           type: rof
           initial_value: { default: 0 }
 
-      - name: n2
-        comment: "N2 divider"
+      - name: div_meas_fast
 
         bit_fields:
         - name: val
-          comment: "Clock frequency division factor for N2 divider. fTIC2=fECLK2/(2*(val+1))"
+          comment: "Fast clk_meas divider (applied only when clk_meas_fast is set)"
           bit_assignment: { width: 32 }
           type: rof
           initial_value: { default: 0 }
-
-    # ------------------------------------------------------
-    #     ADCT - analog-to-digital converter timing
-    # ------------------------------------------------------
-    - name: adct
-      offset_address: 0x40
-      comment: "ADC timing circuitry controls"
-
-      registers:
-      - name: con
-        comment: "Common enable/disable bits"
-
-        bit_fields:
-        - name: srate1_en
-          comment: "Enable sample rate generator 1"
-          bit_assignment: { width: 1 }
-          type: rw
-          initial_value: 0
-
-        - name: srate2_en
-          comment: "Enable sample rate generator 2"
-          bit_assignment: { width: 1 }
-          type: rw
-          initial_value: 0
-
-        - name: puls1_en
-          comment: "Enable pulse generator 1"
-          bit_assignment: { width: 1 }
-          type: rw
-          initial_value: 0
-
-        - name: puls2_en
-          comment: "Enable pulse generator 2"
-          bit_assignment: { width: 1 }
-          type: rw
-          initial_value: 0
-
-      - name: srate1_psc_div
-        comment: "Sample rate generator 1 prescaler division factor"
-        bit_fields:
-        - name: val
-          comment: "Clock frequency division factor for sample rate generator 1. fSRATE1=fSYSCLK/(val+1)"
-          bit_assignment: { width: 8 }
-          type: rw
-          initial_value: 199
-
-      - name: srate2_psc_div
-        comment: "Sample rate generator 2 prescaler division factor"
-        bit_fields:
-        - name: val
-          comment: "Clock frequency division factor for sample rate generator 2. fSRATE2=fSYSCLK/(val+1)"
-          bit_assignment: { width: 8 }
-          type: rw
-          initial_value: 199
-
-      - name: puls1_psc_div
-        comment: "Pulse generator 1 prescaler division factor"
-        bit_fields:
-        - name: val
-          comment: "Clock frequency division factor for pulse generator 1. fPULS1=fSRATE1/(val+1)"
-          bit_assignment: { width: 23 }
-          type: rw
-          initial_value: 0
-
-      - name: puls2_psc_div
-        comment: "Pulse generator 2 prescaler division factor"
-        bit_fields:
-        - name: val
-          comment: "Clock frequency division factor for pulse generator 2. fPULS2=fSRATE2/(val+1)"
-          bit_assignment: { width: 23 }
-          type: rw
-          initial_value: 0
-
-      - name: puls1_dly
-        comment: "Pulse generator 1 micro-delay control"
-        bit_fields:
-        - name: val
-          comment: "Delay for pulse generator 1 output, number of SYSCLK cycles. Tdelay=(val+1)/fSYSCLK"
-          bit_assignment: { width: 9 }
-          type: rw
-          initial_value: 0
-
-      - name: puls2_dly
-        comment: "Pulse generator 2 micro-delay control"
-        bit_fields:
-        - name: val
-          comment: "Delay for pulse generator 2 output, number of SYSCLK cycles. Tdelay=(val+1)/fSYSCLK"
-          bit_assignment: { width: 9 }
-          type: rw
-          initial_value: 0
-
-      - name: puls1_pwidth
-        comment: "Pulse generator 1 pulse width control"
-        bit_fields:
-        - name: val
-          comment: "Pulse width for pulse generator 1 output, number of SRATE1 cycles. Tpulse=val/fSRATE1"
-          bit_assignment: { width: 16 }
-          type: rw
-          initial_value: 1
-
-      - name: puls2_pwidth
-        comment: "Pulse generator 2 pulse width control"
-        bit_fields:
-        - name: val
-          comment: "Pulse width for pulse generator 2 output, number of SRATE2 cycles. Tpulse=val/fSRATE2"
-          bit_assignment: { width: 16 }
-          type: rw
-          initial_value: 1
 
     # ------------------------------------------------------
     #   ADC - analog-to-digital converter control
     # ------------------------------------------------------
     - name: adc
-      offset_address: 0x80
-      comment: "ADC control and data access"
+      offset_address: 0x0060
+      comment: "ADC control"
 
       registers:
       - name: con
         comment: "ADC control"
 
         bit_fields:
-        - name: adc1_en
-          comment: "Enable ADC1"
-          bit_assignment: { width: 1 }
+        - name: adc_en
+          comment: "Enable ADC channels 1-4"
+          bit_assignment: { width: 4 }
           type: rw
           initial_value: 0
-
-        - name: adc2_en
-          comment: "Enable ADC2"
-          bit_assignment: { width: 1 }
-          type: rw
-          initial_value: 0
-
-
-      - name: fifo1_sts
-        comment: "ADC1 FIFO status"
-
-        bit_fields:
-        - name: empty
-          comment: "FIFO is empty"
-          bit_assignment: { width: 1 }
-          type: ro
-
-        - name: full
-          comment: "FIFO is full"
-          bit_assignment: { width: 1 }
-          type: ro
-
-        - name: hfull
-          comment: "FIFO is half-full"
-          bit_assignment: { width: 1 }
-          type: ro
-
-        - name: ovfl
-          comment: "FIFO has overflown (sticky bit, read to clear)"
-          bit_assignment: { width: 1 }
-          type: rotrg
-
-        - name: udfl
-          comment: "FIFO has underflown (sticky bit, read to clear)"
-          bit_assignment: { width: 1 }
-          type: rotrg
-
-      - name: fifo2_sts
-        comment: "ADC2 FIFO status"
-
-        bit_fields:
-        - name: empty
-          comment: "FIFO is empty"
-          bit_assignment: { width: 1 }
-          type: ro
-
-        - name: full
-          comment: "FIFO is full"
-          bit_assignment: { width: 1 }
-          type: ro
-
-        - name: hfull
-          comment: "FIFO is half-full"
-          bit_assignment: { width: 1 }
-          type: ro
-
-        - name: ovfl
-          comment: "FIFO has overflown (sticky bit, read to clear)"
-          bit_assignment: { width: 1 }
-          type: rotrg
-
-        - name: udfl
-          comment: "FIFO has underflown (sticky bit, read to clear)"
-          bit_assignment: { width: 1 }
-          type: rotrg
 
     # ------------------------------------------------------
     #   FTUN - frequency oscillator tuning
     # ------------------------------------------------------
     - name: ftun
-      offset_address: 0xA0
+      offset_address: 0x0080
       comment: "Frequency oscillator tuning"
 
       registers:
       - name: vtune_set
-        comment: "VCTCXO DAC control"
+        comment: "VCTCXO DAC control (linear scale, higher value -> higher frequency)"
 
         bit_fields:
-        - name: val
-          comment: "VCTCXO DAC setting (linear scale, higher value -> higher frequency)"
-          bit_assignment: { lsb: 0, width: 16 }
+        - name: dac_low
+          comment: "VCTCXO DAC setting (low bits)"
+          bit_assignment: { lsb: 0, width: 8 }
+          type: rw
+          initial_value: 0x00
+        - name: dac_high
+          comment: "VCTCXO DAC setting (high bits)"
+          bit_assignment: { lsb: 8, width: 16 }
           type: rwtrg
           initial_value: 0x8000
+
+    # # ------------------------------------------------------
+    # #     ADCT - analog-to-digital converter timing
+    # # ------------------------------------------------------
+    # - name: adct
+    #   offset_address: 0x40
+    #   comment: "ADC timing circuitry controls"
+
+    #   registers:
+    #   - name: con
+    #     comment: "Common enable/disable bits"
+
+    #     bit_fields:
+    #     - name: srate1_en
+    #       comment: "Enable sample rate generator 1"
+    #       bit_assignment: { width: 1 }
+    #       type: rw
+    #       initial_value: 0
+
+    #     - name: srate2_en
+    #       comment: "Enable sample rate generator 2"
+    #       bit_assignment: { width: 1 }
+    #       type: rw
+    #       initial_value: 0
+
+    #     - name: puls1_en
+    #       comment: "Enable pulse generator 1"
+    #       bit_assignment: { width: 1 }
+    #       type: rw
+    #       initial_value: 0
+
+    #     - name: puls2_en
+    #       comment: "Enable pulse generator 2"
+    #       bit_assignment: { width: 1 }
+    #       type: rw
+    #       initial_value: 0
+
+    #   - name: srate1_psc_div
+    #     comment: "Sample rate generator 1 prescaler division factor"
+    #     bit_fields:
+    #     - name: val
+    #       comment: "Clock frequency division factor for sample rate generator 1. fSRATE1=fSYSCLK/(val+1)"
+    #       bit_assignment: { width: 8 }
+    #       type: rw
+    #       initial_value: 199
+
+    #   - name: srate2_psc_div
+    #     comment: "Sample rate generator 2 prescaler division factor"
+    #     bit_fields:
+    #     - name: val
+    #       comment: "Clock frequency division factor for sample rate generator 2. fSRATE2=fSYSCLK/(val+1)"
+    #       bit_assignment: { width: 8 }
+    #       type: rw
+    #       initial_value: 199
+
+    #   - name: puls1_psc_div
+    #     comment: "Pulse generator 1 prescaler division factor"
+    #     bit_fields:
+    #     - name: val
+    #       comment: "Clock frequency division factor for pulse generator 1. fPULS1=fSRATE1/(val+1)"
+    #       bit_assignment: { width: 23 }
+    #       type: rw
+    #       initial_value: 0
+
+    #   - name: puls2_psc_div
+    #     comment: "Pulse generator 2 prescaler division factor"
+    #     bit_fields:
+    #     - name: val
+    #       comment: "Clock frequency division factor for pulse generator 2. fPULS2=fSRATE2/(val+1)"
+    #       bit_assignment: { width: 23 }
+    #       type: rw
+    #       initial_value: 0
+
+    #   - name: puls1_dly
+    #     comment: "Pulse generator 1 micro-delay control"
+    #     bit_fields:
+    #     - name: val
+    #       comment: "Delay for pulse generator 1 output, number of SYSCLK cycles. Tdelay=(val+1)/fSYSCLK"
+    #       bit_assignment: { width: 9 }
+    #       type: rw
+    #       initial_value: 0
+
+    #   - name: puls2_dly
+    #     comment: "Pulse generator 2 micro-delay control"
+    #     bit_fields:
+    #     - name: val
+    #       comment: "Delay for pulse generator 2 output, number of SYSCLK cycles. Tdelay=(val+1)/fSYSCLK"
+    #       bit_assignment: { width: 9 }
+    #       type: rw
+    #       initial_value: 0
+
+    #   - name: puls1_pwidth
+    #     comment: "Pulse generator 1 pulse width control"
+    #     bit_fields:
+    #     - name: val
+    #       comment: "Pulse width for pulse generator 1 output, number of SRATE1 cycles. Tpulse=val/fSRATE1"
+    #       bit_assignment: { width: 16 }
+    #       type: rw
+    #       initial_value: 1
+
+    #   - name: puls2_pwidth
+    #     comment: "Pulse generator 2 pulse width control"
+    #     bit_fields:
+    #     - name: val
+    #       comment: "Pulse width for pulse generator 2 output, number of SRATE2 cycles. Tpulse=val/fSRATE2"
+    #       bit_assignment: { width: 16 }
+    #       type: rw
+    #       initial_value: 1
 
     # ------------------------------------------------------
     #   TEST - test registers
     # ------------------------------------------------------
     - name: test
-      offset_address: 0x1F0
+      offset_address: 0x03E0
       comment: "Registers allocated for test purposes"
 
       registers:
-      - name: rw1
+      - name: rw
         bit_fields:
         - name: val
-          bit_assignment: { width: 16 }
+          bit_assignment: { width: 32 }
           type: rw
-          initial_value: 0
-
-      - name: ro1
-        bit_fields:
-        - name: val
-          bit_assignment: { width: 16 }
-          type: rof
-          initial_value: 0xFFff
-
-      - name: ro2
-        bit_fields:
-        - name: val
-          bit_assignment: { width: 16 }
-          type: rof
-          initial_value: 0x0000
-
-      - name: ro3
-        bit_fields:
-        - name: val
-          bit_assignment: { width: 32 }
-          type: rof
-          initial_value: 0xAAaaAA55
-
-      - name: ro4
-        bit_fields:
-        - name: val
-          bit_assignment: { width: 32 }
-          type: rof
-          initial_value: 0x55aa5555
+          initial_value: 0xAAA5555B
