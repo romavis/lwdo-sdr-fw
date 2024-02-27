@@ -14,17 +14,28 @@ module tdc #(
 ) (
     input i_clk,
     input i_rst,
+    // Enable signal
+    input i_en,
     // Time signals:
     //  s0 - gate pulse
     //  s1 - measured pulse
     // Both should be synchronized to @(posedge i_clk) domain
-    input i_s0,
-    input i_s1,
+    input [1:0] i_s,
     // Output readings
     output [DATA_WIDTH-1:0] o_m_axis_tdata,
     output o_m_axis_tvalid,
     input i_m_axis_tready
 );
+
+    // Gated & registered s0 and s1
+    reg [1:0] sg;
+    always @(posedge i_clk or posedge i_rst) begin
+        if (i_rst) begin
+            sg <= 1'b0;
+        end else begin
+            sg <= i_s & {2{i_en}};
+        end
+    end
 
     // Counter
     reg [COUNTER_WIDTH-1:0] cnt_q0;
@@ -32,7 +43,7 @@ module tdc #(
         if (i_rst) begin
             cnt_q0 <= 1'd0;
         end else begin
-            if (i_s0) begin
+            if (sg[0] || !i_en) begin
                 cnt_q0 <= 1'd0;
             end else begin
                 cnt_q0 <= cnt_q0 + 1'd1;
@@ -42,17 +53,14 @@ module tdc #(
 
     // Register counter, s0 and s1
     reg [COUNTER_WIDTH-1:0] cnt_q1;
-    reg s0_q1;
-    reg s1_q1;
+    reg [1:0] s_q1;
     always @(posedge i_clk or posedge i_rst) begin
         if (i_rst) begin
             cnt_q1 <= 1'd0;
-            s0_q1 <= 1'd0;
-            s1_q1 <= 1'd0;
+            s_q1 <= 1'd0;
         end else begin
             cnt_q1 <= cnt_q0;
-            s0_q1 <= i_s0;
-            s1_q1 <= i_s1;
+            s_q1 <= sg;
         end
     end
 
@@ -66,12 +74,12 @@ module tdc #(
             t2_reg <= 1'b0;
             t12_valid_reg <= 1'b0;
         end else begin
-            if (s0_q1) begin
+            if (s_q1[0]) begin
                 // reset
                 t1_reg <= 1'b0;
                 t2_reg <= 1'b0;
                 t12_valid_reg <= 1'b0;
-            end else if (s1_q1) begin
+            end else if (s_q1[1]) begin
                 // record t2 and optionally t1
                 if (!t12_valid_reg) begin
                     t1_reg <= cnt_q1;
@@ -93,9 +101,9 @@ module tdc #(
             data_t1_reg <= 1'd0;
             data_t2_reg <= 1'd0;
         end else begin
-            if (s0_q1) begin
+            if (s_q1[0]) begin
                 data_t0_reg <= cnt_q1;
-                if (!s1_q1) begin
+                if (!s_q1[1]) begin
                     // Copy recorded values
                     data_t12_valid_reg <= t12_valid_reg;
                     data_t1_reg <= t1_reg;
@@ -122,7 +130,7 @@ module tdc #(
         if (i_rst) begin
             axis_tvalid_reg <= 1'b0;
         end else begin
-            if (s0_q1) begin
+            if (s_q1[0]) begin
                 axis_tvalid_reg <= 1'b1;
             end else if (i_m_axis_tready) begin
                 axis_tvalid_reg <= 1'b0;

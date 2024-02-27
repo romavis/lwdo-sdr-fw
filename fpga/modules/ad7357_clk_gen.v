@@ -17,9 +17,8 @@ module ad7357_clk_gen (
     // Signaling to ad7357_driver module
     input i_ctl_cken,   // OR drivers' 'cken' signals here
     // SCLK pin driven via DDR output buffer
-    output o_adc_ddr_clk,       // DDR FF clock used by both SCLK and SDATA
-    output o_adc_sclk_ddr_h,    // To output when ddr_clk: L->H
-    output o_adc_sclk_ddr_l     // To output when ddr_clk: H->L
+    output o_adc_sclk_ddr_h,    // To output when i_clk: L->H
+    output o_adc_sclk_ddr_l     // To output when i_clk: H->L
 );
 
     reg sclk_ddr_h_reg;
@@ -47,7 +46,6 @@ module ad7357_clk_gen (
         end
     end
 
-    assign o_adc_ddr_clk = i_clk;
     assign o_adc_sclk_ddr_h = sclk_ddr_h_reg;
     assign o_adc_sclk_ddr_l = sclk_ddr_l_reg;
 

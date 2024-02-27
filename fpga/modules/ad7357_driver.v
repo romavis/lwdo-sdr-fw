@@ -27,11 +27,11 @@ module ad7357_driver #(
     // CSn pin driver (no DDR here)
     output o_adc_cs_n,
     // SDATA pins acquired using DDR input buffers
-    // NOTE: SDATA DDR input cell should be clocked by o_adc_ddr_clk from
-    // clk_gen module. You can also delay SDATA cell clock by a few ns to
+    // NOTE: SDATA DDR input cell should be clocked by i_clk.
+    // You can also delay SDATA cell clock by a few ns to
     // compensate for AD7357 long SDATA output delay + FPGA i/o delays.
-    input [NUM_CHANNELS-1:0] i_adc_sdata_ddr_h, // Input latched when ddr_clk: H->L
-    input [NUM_CHANNELS-1:0] i_adc_sdata_ddr_l, // Input latched when ddr_clk: L->H
+    input [NUM_CHANNELS-1:0] i_adc_sdata_ddr_h, // Input latched when i_clk: H->L
+    input [NUM_CHANNELS-1:0] i_adc_sdata_ddr_l, // Input latched when i_clk: L->H
     // Signaling to the clk_gen module
     output o_ctl_cken   //
 );

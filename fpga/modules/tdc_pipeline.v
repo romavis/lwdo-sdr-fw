@@ -28,10 +28,13 @@ module tdc_pipeline #(
     input i_clk_gate,
     input i_clk_meas,
     // Control
-    input i_meas_fast   // if 1, DIV_MEAS_FAST is used; if 0, no division
+    input i_ctl_en,         // if 1, TDC is enabled
+    input i_ctl_meas_fast,  // if 1, DIV_MEAS_FAST is used; if 0, no division
+    input i_ctl_gate_fdec,  // if 1, gate frequency is slightly decreased
+    input i_ctl_gate_finc   // if 1, gate frequency is slightly increased
 );
 
-    localparam DIV_GATE_BITS = $clog2(DIV_GATE);
+    localparam DIV_GATE_BITS = $clog2(DIV_GATE + 1);
     localparam DIV_MEAS_FAST_BITS = $clog2(DIV_MEAS_FAST);
 
     localparam TDC_TOT_WIDTH = 1 + COUNTER_WIDTH * 3;
@@ -47,6 +50,11 @@ module tdc_pipeline #(
     wire rst_tdc;
     wire rst_gate;
     wire rst_meas;
+    // Signals resynchronized into i_clk_gate domain
+    wire gate_ctl_fdec;
+    wire gate_ctl_finc;
+    // clk_gate divider value
+    reg [DIV_GATE_BITS-1:0] gate_div_q;
     // Divided clk_gate
     wire clk_gate_div;
     // Divided clk_meas
@@ -55,7 +63,8 @@ module tdc_pipeline #(
     wire tdc_clk_gate_div;
     wire tdc_clk_meas;
     wire tdc_clk_meas_div_fast;
-    wire tdc_meas_fast;
+    wire tdc_ctl_en;
+    wire tdc_ctl_meas_fast;
     // S0 and S1 TDC signals
     wire [1:0] tdc_s;
     // Edge detected S0 and S1
@@ -96,8 +105,43 @@ module tdc_pipeline #(
         .out(rst_meas)
     );
 
+    // clock domain crossing into i_clk_gate domain
+    ff_sync #(
+        .DEPTH(FF_SYNC_DEPTH)
+    ) u_sync_gate_ctl_fdec (
+        .i_clk(i_clk_gate),
+        .i_rst(rst_gate),
+        .i_d(i_ctl_gate_fdec),
+        .o_q(gate_ctl_fdec)
+    );
+
+    ff_sync #(
+        .DEPTH(FF_SYNC_DEPTH)
+    ) u_sync_gate_ctl_finc (
+        .i_clk(i_clk_gate),
+        .i_rst(rst_gate),
+        .i_d(i_ctl_gate_finc),
+        .o_q(gate_ctl_finc)
+    );
+
+    // choose gate divider
+    always @(posedge i_clk_gate or posedge rst_gate) begin
+        if (rst_gate) begin
+            gate_div_q <= DIV_GATE - 1;
+        end else begin
+            gate_div_q <= DIV_GATE - 1;
+            if (gate_ctl_fdec) begin
+                // div=DIV+1
+                gate_div_q <= DIV_GATE;
+            end
+            if (gate_ctl_finc) begin
+                // div=DIV-1
+                gate_div_q <= DIV_GATE - 2;
+            end
+        end
+    end
+
     // clk_gate divider
-    wire [DIV_GATE_BITS-1:0] _div_gate_n = DIV_GATE - 1;
     fastcounter #(
         .NBITS(DIV_GATE_BITS)
     ) u_div_gate (
@@ -108,7 +152,7 @@ module tdc_pipeline #(
         .i_dir(1'b0),       // DOWN
         .i_en(1'b1),
         .i_load(1'b0),
-        .i_load_q(_div_gate_n),
+        .i_load_q(gate_div_q),
         .o_carry_dly(clk_gate_div)
     );
 
@@ -131,7 +175,7 @@ module tdc_pipeline #(
     // clock domain crossing into i_clk_tdc domain
     ff_sync #(
         .DEPTH(FF_SYNC_DEPTH)
-    ) u_sync_clk_gate (
+    ) u_sync_tdc_clk_gate (
         .i_clk(i_clk_tdc),
         .i_rst(rst_tdc),
         .i_d(clk_gate_div),
@@ -140,7 +184,7 @@ module tdc_pipeline #(
 
     ff_sync #(
         .DEPTH(FF_SYNC_DEPTH)
-    ) u_sync_clk_meas (
+    ) u_sync_tdc_clk_meas (
         .i_clk(i_clk_tdc),
         .i_rst(rst_tdc),
         .i_d(i_clk_meas),
@@ -149,7 +193,7 @@ module tdc_pipeline #(
 
     ff_sync #(
         .DEPTH(FF_SYNC_DEPTH)
-    ) u_sync_clk_meas_div_fast (
+    ) u_sync_tdc_clk_meas_div_fast (
         .i_clk(i_clk_tdc),
         .i_rst(rst_tdc),
         .i_d(clk_meas_div_fast),
@@ -158,16 +202,26 @@ module tdc_pipeline #(
 
     ff_sync #(
         .DEPTH(FF_SYNC_DEPTH)
-    ) u_sync_meas_fast (
+    ) u_sync_tdc_ctl_en (
         .i_clk(i_clk_tdc),
         .i_rst(rst_tdc),
-        .i_d(i_meas_fast),
-        .o_q(tdc_meas_fast)
+        .i_d(i_ctl_en),
+        .o_q(tdc_ctl_en)
+    );
+
+    ff_sync #(
+        .DEPTH(FF_SYNC_DEPTH)
+    ) u_sync_tdc_ctl_meas_fast (
+        .i_clk(i_clk_tdc),
+        .i_rst(rst_tdc),
+        .i_d(i_ctl_meas_fast),
+        .o_q(tdc_ctl_meas_fast)
     );
 
     // TDC S0, S1 signals
     assign tdc_s[0] = tdc_clk_gate_div;
-    assign tdc_s[1] = tdc_meas_fast ? tdc_clk_meas_div_fast : tdc_clk_meas;
+    assign tdc_s[1] =
+        tdc_ctl_meas_fast ? tdc_clk_meas_div_fast : tdc_clk_meas;
 
     // Positive edge detector
     always @(posedge i_clk_tdc or posedge rst_tdc) begin
@@ -187,8 +241,8 @@ module tdc_pipeline #(
     ) u_tdc (
         .i_clk(i_clk_tdc),
         .i_rst(rst_tdc),
-        .i_s0(tdc_s_pulse[0]),
-        .i_s1(tdc_s_pulse[1]),
+        .i_en(tdc_ctl_en),
+        .i_s(tdc_s_pulse),
         .o_m_axis_tdata(tdc_tdata),
         .o_m_axis_tvalid(tdc_tvalid),
         .i_m_axis_tready(tdc_tready)

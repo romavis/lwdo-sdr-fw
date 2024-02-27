@@ -25,12 +25,11 @@ module adc_pipeline #(
     input i_rst,
     // ADC pins
     // DDR output:
-    //  _h - latch on ddr_clk L->H, output if ddr_clk=H
-    //  _l - latch on ddr_clk H->L, output if ddr_clk=L
+    //  _h - latch on i_clk L->H, output if i_clk=H
+    //  _l - latch on i_clk H->L, output if i_clk=L
     // DDR input:
-    //  _h - latched when ddr_clk H->L
-    //  _l - latched when ddr_clk L->H
-    output o_adc_ddr_clk,
+    //  _h - latched when i_clk H->L
+    //  _l - latched when i_clk L->H
     output o_adc_sclk_ddr_h,
     output o_adc_sclk_ddr_l,
     output o_adc_cs_n,
@@ -132,7 +131,6 @@ module adc_pipeline #(
         .i_clk(i_clk),
         .i_rst(i_rst),
         .i_ctl_cken(adc_ctl_cken),
-        .o_adc_ddr_clk(o_adc_ddr_clk),
         .o_adc_sclk_ddr_h(o_adc_sclk_ddr_h),
         .o_adc_sclk_ddr_l(o_adc_sclk_ddr_l)
     );
@@ -146,7 +144,7 @@ module adc_pipeline #(
         .i_clk(i_clk),
         .i_rst(i_rst),
         // .o_ready(),
-        .i_start(i_sync_acq),
+        .i_start(i_sync_acq & (|i_chn_en)),
         .o_sample(adc_sample),
         .o_m_axis_tdata(adc_tdata),
         .o_m_axis_tvalid(adc_tvalid),

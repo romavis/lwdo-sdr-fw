@@ -12,17 +12,19 @@ module rst_bridge #(
 ) (
     input clk,  // clock
     input rst,  // 'dirty' asynchronous reset (async assert, async de-assert)
-    output out  // 'clean' asynchronous reset (async assert, sync de-assert)
+    output out, // 'clean' asynchronous reset (async assert, sync de-assert)
+    output outd // same as 'out' but is held for 1 clock cycle longer
 );
 
-    reg [1:0] r = {INITIAL_VAL, INITIAL_VAL};
+    reg [2:0] r = {3{INITIAL_VAL}};
 
     always @(posedge clk or posedge rst)
         if (rst)
-            {r[1], r[0]} <= {1'b1, 1'b1};
+            r <= {3{1'b1}};
         else
-            {r[1], r[0]} <= {r[0], 1'b0};
+            r <= {r[1:0], 1'b0};
 
     assign out = r[1];
+    assign outd = r[2];
 
 endmodule
