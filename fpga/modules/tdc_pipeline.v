@@ -10,6 +10,7 @@ module tdc_pipeline #(
     parameter COUNTER_WIDTH = 32,
     parameter COUNTER_BYTES = 4,
     parameter DIV_GATE = 2000000,
+    parameter DIV_GATE_INCDEC_DELTA = DIV_GATE / 2000, // ~500 ppm
     parameter DIV_MEAS_FAST = 100000,
     parameter FF_SYNC_DEPTH = 2
 ) (
@@ -34,7 +35,7 @@ module tdc_pipeline #(
     input i_ctl_gate_finc   // if 1, gate frequency is slightly increased
 );
 
-    localparam DIV_GATE_BITS = $clog2(DIV_GATE + 1);
+    localparam DIV_GATE_BITS = $clog2(DIV_GATE + DIV_GATE_INCDEC_DELTA);
     localparam DIV_MEAS_FAST_BITS = $clog2(DIV_MEAS_FAST);
 
     localparam TDC_TOT_WIDTH = 1 + COUNTER_WIDTH * 3;
@@ -131,12 +132,10 @@ module tdc_pipeline #(
         end else begin
             gate_div_q <= DIV_GATE - 1;
             if (gate_ctl_fdec) begin
-                // div=DIV+1
-                gate_div_q <= DIV_GATE;
+                gate_div_q <= DIV_GATE - 1 + DIV_GATE_INCDEC_DELTA;
             end
             if (gate_ctl_finc) begin
-                // div=DIV-1
-                gate_div_q <= DIV_GATE - 2;
+                gate_div_q <= DIV_GATE - 1 - DIV_GATE_INCDEC_DELTA;
             end
         end
     end
