@@ -34,7 +34,7 @@ module tdc_pipeline #(
     localparam DIV_GATE_BITS = $clog2(DIV_GATE);
     localparam DIV_MEAS_FAST_BITS = $clog2(DIV_MEAS_FAST);
 
-    localparam TDC_TOT_WIDTH = COUNTER_WIDTH * 3;
+    localparam TDC_TOT_WIDTH = 1 + COUNTER_WIDTH * 3;
     localparam TDC_PAD_WIDTH = COUNTER_BYTES * 8;
     localparam TDC_PAD_TOT_BYTES = COUNTER_BYTES * 3;
     localparam TDC_PAD_TOT_WIDTH = TDC_PAD_TOT_BYTES * 8;
@@ -194,7 +194,7 @@ module tdc_pipeline #(
         .i_m_axis_tready(tdc_tready)
     );
 
-    // AsyncFIFO clock domain crossing using
+    // Clock domain crossing using AsyncFIFO
     axis_async_fifo #(
         .DEPTH(32),
         .DATA_WIDTH(TDC_TOT_WIDTH),
@@ -213,6 +213,7 @@ module tdc_pipeline #(
         .s_axis_tdata(tdc_tdata),
         .s_axis_tvalid(tdc_tvalid),
         .s_axis_tready(tdc_tready),
+        .s_axis_tlast(1'b1),
         //
         .m_clk(i_clk),
         .m_rst(i_rst),
@@ -229,6 +230,14 @@ module tdc_pipeline #(
         for (ii = 0; ii < 3; ii = ii + 1) begin
             pad_tdata[(ii+1)*TDC_PAD_WIDTH-1:ii*TDC_PAD_WIDTH] =
                 sync_tdata[(ii+1)*COUNTER_WIDTH-1:ii*COUNTER_WIDTH];
+        end
+        // the MSB of sync_tdata carries 't12_valid' value from TDC
+        // If t1-t2 are invalid, stuff corresponding bytes with 0xFF
+        if (!sync_tdata[TDC_TOT_WIDTH-1]) begin
+            for (ii = 1; ii < 3; ii = ii + 1) begin
+                pad_tdata[(ii+1)*TDC_PAD_WIDTH-1:ii*TDC_PAD_WIDTH] =
+                    {TDC_PAD_WIDTH{1'b1}};
+            end
         end
     end
 
