@@ -10,9 +10,9 @@ module tdc_pipeline #(
     parameter COUNTER_WIDTH = 32,
     parameter COUNTER_BYTES = 4,
     parameter DIV_GATE = 2000000,
-    parameter DIV_GATE_INCDEC_DELTA = DIV_GATE / 2000, // ~500 ppm
+    parameter DIV_GATE_INCDEC_DELTA = DIV_GATE / 10000, // ~100 ppm
     parameter DIV_MEAS_FAST = 100000,
-    parameter FF_SYNC_DEPTH = 2
+    parameter CLK_FFSYNC_DEPTH = 3
 ) (
     // Main clock domain
     input i_clk,
@@ -46,12 +46,16 @@ module tdc_pipeline #(
     // ====================================================================
     //                      Wires and registers
     // ====================================================================
-
-    // Resets for i_clk_tdc / i_clk_gate / i_clk_meas domains
+    
+    // Clocks (aliases for brevity)
+    wire clk_tdc = i_clk_tdc;
+    wire clk_gate = i_clk_gate;
+    wire clk_meas = i_clk_meas;
+    // Resets for clk_tdc / clk_gate / clk_meas domains
     wire rst_tdc;
     wire rst_gate;
     wire rst_meas;
-    // Signals resynchronized into i_clk_gate domain
+    // Signals resynchronized into clk_gate domain
     wire gate_ctl_fdec;
     wire gate_ctl_finc;
     // clk_gate divider value
@@ -60,7 +64,7 @@ module tdc_pipeline #(
     wire clk_gate_div;
     // Divided clk_meas
     wire clk_meas_div_fast;
-    // Signals resynchronized into i_clk_tdc domain
+    // Signals resynchronized into clk_tdc domain
     wire tdc_clk_gate_div;
     wire tdc_clk_meas;
     wire tdc_clk_meas_div_fast;
@@ -71,7 +75,7 @@ module tdc_pipeline #(
     // Edge detected S0 and S1
     reg [1:0] tdc_s_q;
     wire [1:0] tdc_s_pulse;
-    // Wide TDC AXI-S bus (i_clk_tdc domain)
+    // Wide TDC AXI-S bus (clk_tdc domain)
     wire [TDC_TOT_WIDTH-1:0] tdc_tdata;
     wire tdc_tvalid;
     wire tdc_tready;
@@ -89,44 +93,43 @@ module tdc_pipeline #(
     // ====================================================================
 
     rst_bridge u_rst_bridge_tdc (
-        .clk(i_clk_tdc),
+        .clk(clk_tdc),
         .rst(i_rst),
         .out(rst_tdc)
     );
 
     rst_bridge u_rst_bridge_gate (
-        .clk(i_clk_gate),
+        .clk(clk_gate),
         .rst(i_rst),
         .out(rst_gate)
     );
 
     rst_bridge u_rst_bridge_meas (
-        .clk(i_clk_meas),
+        .clk(clk_meas),
         .rst(i_rst),
         .out(rst_meas)
     );
 
-    // clock domain crossing into i_clk_gate domain
-    ff_sync #(
-        .DEPTH(FF_SYNC_DEPTH)
+    // clock domain crossing into clk_gate domain
+    // DC-like signals
+    cdc_ffsync #(
     ) u_sync_gate_ctl_fdec (
-        .i_clk(i_clk_gate),
+        .i_clk(clk_gate),
         .i_rst(rst_gate),
         .i_d(i_ctl_gate_fdec),
         .o_q(gate_ctl_fdec)
     );
 
-    ff_sync #(
-        .DEPTH(FF_SYNC_DEPTH)
+    cdc_ffsync #(
     ) u_sync_gate_ctl_finc (
-        .i_clk(i_clk_gate),
+        .i_clk(clk_gate),
         .i_rst(rst_gate),
         .i_d(i_ctl_gate_finc),
         .o_q(gate_ctl_finc)
     );
 
     // choose gate divider
-    always @(posedge i_clk_gate or posedge rst_gate) begin
+    always @(posedge clk_gate or posedge rst_gate) begin
         if (rst_gate) begin
             gate_div_q <= DIV_GATE - 1;
         end else begin
@@ -144,7 +147,7 @@ module tdc_pipeline #(
     fastcounter #(
         .NBITS(DIV_GATE_BITS)
     ) u_div_gate (
-        .i_clk(i_clk_gate),
+        .i_clk(clk_gate),
         .i_rst(rst_gate),
         //
         .i_mode(2'd0),      // AUTORELOAD
@@ -160,7 +163,7 @@ module tdc_pipeline #(
     fastcounter #(
         .NBITS(DIV_MEAS_FAST_BITS)
     ) u_div_meas_fast (
-        .i_clk(i_clk_meas),
+        .i_clk(clk_meas),
         .i_rst(rst_meas),
         //
         .i_mode(2'd0),      // AUTORELOAD
@@ -171,47 +174,51 @@ module tdc_pipeline #(
         .o_carry_dly(clk_meas_div_fast)
     );
 
-    // clock domain crossing into i_clk_tdc domain
-    ff_sync #(
-        .DEPTH(FF_SYNC_DEPTH)
+    // clock domain crossing into clk_tdc domain
+    // Very narrow pulsed signals
+    cdc_pulsed #(
+        .DEPTH_FWD(CLK_FFSYNC_DEPTH)
     ) u_sync_tdc_clk_gate (
-        .i_clk(i_clk_tdc),
-        .i_rst(rst_tdc),
-        .i_d(clk_gate_div),
-        .o_q(tdc_clk_gate_div)
+        .i_a_clk(clk_gate),
+        .i_a_rst(rst_gate),
+        .i_a_pulse(clk_gate_div),
+        .i_b_clk(clk_tdc),
+        .i_b_rst(rst_tdc),
+        .o_b_pulse(tdc_clk_gate_div)
     );
 
-    ff_sync #(
-        .DEPTH(FF_SYNC_DEPTH)
+    cdc_pulsed #(
+        .DEPTH_FWD(CLK_FFSYNC_DEPTH)
+    ) u_sync_tdc_clk_meas_div_fast (
+        .i_a_clk(clk_meas),
+        .i_a_rst(rst_meas),
+        .i_a_pulse(clk_meas_div_fast),
+        .i_b_clk(clk_tdc),
+        .i_b_rst(rst_tdc),
+        .o_b_pulse(tdc_clk_meas_div_fast)
+    );
+
+    // Wide pulse / DC-like signals
+    cdc_ffsync #(
+        .DEPTH(CLK_FFSYNC_DEPTH)
     ) u_sync_tdc_clk_meas (
-        .i_clk(i_clk_tdc),
+        .i_clk(clk_tdc),
         .i_rst(rst_tdc),
-        .i_d(i_clk_meas),
+        .i_d(clk_meas),
         .o_q(tdc_clk_meas)
     );
 
-    ff_sync #(
-        .DEPTH(FF_SYNC_DEPTH)
-    ) u_sync_tdc_clk_meas_div_fast (
-        .i_clk(i_clk_tdc),
-        .i_rst(rst_tdc),
-        .i_d(clk_meas_div_fast),
-        .o_q(tdc_clk_meas_div_fast)
-    );
-
-    ff_sync #(
-        .DEPTH(FF_SYNC_DEPTH)
+    cdc_ffsync #(
     ) u_sync_tdc_ctl_en (
-        .i_clk(i_clk_tdc),
+        .i_clk(clk_tdc),
         .i_rst(rst_tdc),
         .i_d(i_ctl_en),
         .o_q(tdc_ctl_en)
     );
 
-    ff_sync #(
-        .DEPTH(FF_SYNC_DEPTH)
+    cdc_ffsync #(
     ) u_sync_tdc_ctl_meas_fast (
-        .i_clk(i_clk_tdc),
+        .i_clk(clk_tdc),
         .i_rst(rst_tdc),
         .i_d(i_ctl_meas_fast),
         .o_q(tdc_ctl_meas_fast)
@@ -223,7 +230,7 @@ module tdc_pipeline #(
         tdc_ctl_meas_fast ? tdc_clk_meas_div_fast : tdc_clk_meas;
 
     // Positive edge detector
-    always @(posedge i_clk_tdc or posedge rst_tdc) begin
+    always @(posedge clk_tdc or posedge rst_tdc) begin
         if (rst_tdc) begin
             tdc_s_q <= 1'b0;
         end else begin
@@ -238,7 +245,7 @@ module tdc_pipeline #(
         .COUNTER_WIDTH(COUNTER_WIDTH),
         .DATA_WIDTH(TDC_TOT_WIDTH)
     ) u_tdc (
-        .i_clk(i_clk_tdc),
+        .i_clk(clk_tdc),
         .i_rst(rst_tdc),
         .i_en(tdc_ctl_en),
         .i_s(tdc_s_pulse),
@@ -261,7 +268,7 @@ module tdc_pipeline #(
         .FRAME_FIFO(0),
         .PAUSE_ENABLE(0)
     ) u_async_fifo (
-        .s_clk(i_clk_tdc),
+        .s_clk(clk_tdc),
         .s_rst(rst_tdc),
         .s_axis_tdata(tdc_tdata),
         .s_axis_tvalid(tdc_tvalid),

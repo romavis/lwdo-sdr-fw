@@ -50,9 +50,10 @@ V_MODULES += \
 	$(SRC_DIR)/modules/ad7357_clk_gen.v \
 	$(SRC_DIR)/modules/ad7357_driver.v \
 	$(SRC_DIR)/modules/adc_pipeline.v \
+	$(SRC_DIR)/modules/cdc_ffsync.v \
+	$(SRC_DIR)/modules/cdc_pulsed.v \
 	$(SRC_DIR)/modules/dac8551.v \
 	$(SRC_DIR)/modules/fastcounter.v \
-	$(SRC_DIR)/modules/ff_sync.v \
 	$(SRC_DIR)/modules/ft245sync.v \
 	$(SRC_DIR)/modules/lut_delay.v \
 	$(SRC_DIR)/modules/rst_bridge.v \

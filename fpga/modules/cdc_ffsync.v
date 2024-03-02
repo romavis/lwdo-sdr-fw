@@ -1,12 +1,12 @@
 /****************************************************************************
 
-                            ---- ff_sync ----
+                            ---- cdc_ffsync ----
 
 Flip-flop synchronizer for clock domain crossing.
 
 ****************************************************************************/
 
-module ff_sync #(
+module cdc_ffsync #(
     parameter DEPTH = 2,
     parameter INITIAL_VAL = 1'b0,
 ) (
