@@ -353,13 +353,11 @@ module top (
     //  1. FPGA initialization
     //  2. PLL "not locked" condition
     //  3. csr_sys_rst CSR bit
-    rst_bridge #(
-        .INITIAL_VAL(1'b1)
-    ) sys_rst_gen (
-        .clk(sys_clk),
-        .rst((~sys_pll_lock) | csr_sys_con_sys_rst),
-        .out(sys_rst),
-        .outd(sys_rstd)
+    cdc_reset_bridge sys_rst_gen (
+        .i_clk(sys_clk),
+        .i_rst((~sys_pll_lock) | csr_sys_con_sys_rst),
+        .o_rst(sys_rst),
+        .o_rst_q(sys_rstd)
     );
 
     // --------------------------------------------------
@@ -809,12 +807,10 @@ module top (
     //  1. FPGA initialization
     //  2. sys_rst
 
-    rst_bridge #(
-        .INITIAL_VAL(1'b1)
-    ) ft_rst_gen (
-        .clk(ft_clk),
-        .rst(sys_rst),
-        .out(ft_rst)
+    cdc_reset_bridge ft_rst_gen (
+        .i_clk(ft_clk),
+        .i_rst(sys_rst),
+        .o_rst(ft_rst)
     );
 
     // ------------------------

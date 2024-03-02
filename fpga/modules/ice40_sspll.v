@@ -65,10 +65,10 @@ module ice40_sspll #(
     );
 
     // Reset bridge for 'pll_clk' domain (all our DFFs are clocked by that)
-    rst_bridge u_pll_out_rst_bridge (
-        .clk(pll_clk),
-        .rst(~RESETB),
-        .out(pll_rst)
+    cdc_reset_bridge u_pll_out_rst_bridge (
+        .i_clk(pll_clk),
+        .i_rst(~RESETB),
+        .o_rst(pll_rst)
     );
 
     // LFSR

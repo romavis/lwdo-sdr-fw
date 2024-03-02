@@ -92,22 +92,22 @@ module tdc_pipeline #(
     //                          Implementation
     // ====================================================================
 
-    rst_bridge u_rst_bridge_tdc (
-        .clk(clk_tdc),
-        .rst(i_rst),
-        .out(rst_tdc)
+    cdc_reset_bridge u_rst_bridge_tdc (
+        .i_clk(clk_tdc),
+        .i_rst(i_rst),
+        .o_rst(rst_tdc)
     );
 
-    rst_bridge u_rst_bridge_gate (
-        .clk(clk_gate),
-        .rst(i_rst),
-        .out(rst_gate)
+    cdc_reset_bridge u_rst_bridge_gate (
+        .i_clk(clk_gate),
+        .i_rst(i_rst),
+        .o_rst(rst_gate)
     );
 
-    rst_bridge u_rst_bridge_meas (
-        .clk(clk_meas),
-        .rst(i_rst),
-        .out(rst_meas)
+    cdc_reset_bridge u_rst_bridge_meas (
+        .i_clk(clk_meas),
+        .i_rst(i_rst),
+        .o_rst(rst_meas)
     );
 
     // clock domain crossing into clk_gate domain
