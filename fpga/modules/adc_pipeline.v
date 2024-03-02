@@ -8,16 +8,20 @@ Implements data pipeline for AD7357.
 
 
 module adc_pipeline #(
+    // Width of ADC samplerate divider counter
+    parameter SAMPLE_RATE_DIV_WIDTH = 24,
     // Number of ADC channels
     parameter ADC_NUM_CHANNELS = 4,
     // Hardware ADC resolution (bits)
     parameter ADC_CHN_WIDTH = 14,
     // Number of bytes output per channel
     parameter ADC_CHN_BYTES = (ADC_CHN_WIDTH + 7) / 8,
+    // Width of timestamping rate divider counter
+    parameter TS_RATE_DIV_WIDTH = 8,
     // Timestamp counter width
-    parameter TIMESTAMP_WIDTH = 32,
+    parameter TS_WIDTH = 32,
     // Number of bytes transmitted for timestamp counter
-    parameter TIMESTAMP_BYTES = (TIMESTAMP_WIDTH + 7) / 8,
+    parameter TS_BYTES = (TS_WIDTH + 7) / 8,
     // ADC/TS FIFO depth
     parameter FIFO_DEPTH = 512
 ) (
@@ -35,15 +39,14 @@ module adc_pipeline #(
     output o_adc_cs_n,
     input [ADC_NUM_CHANNELS-1:0] i_adc_sdata_ddr_h,
     input [ADC_NUM_CHANNELS-1:0] i_adc_sdata_ddr_l,
-    // Timestamp counter
-    input [TIMESTAMP_WIDTH-1:0] i_timestamp,
     // Channel enable bits
     input [ADC_NUM_CHANNELS-1:0] i_chn_en,
-    // Control signals:
-    //  sync_acq - 1 clk wide pulse, triggers conversion
-    //  sync_ts - 1 clk wide pulse, triggers timestamping of next conversion
-    input i_sync_acq,
-    input i_sync_ts,
+    // Sample rate divider
+    input [SAMPLE_RATE_DIV_WIDTH-1:0] i_sample_rate_div,
+    // Timestamp counter
+    input [TS_WIDTH-1:0] i_ts,
+    // Timestamp rate divider
+    input [TS_RATE_DIV_WIDTH-1:0] i_ts_rate_div,
     // 8-bit packeted AXI-S output for ADC data
     output [7:0] o_m_axis_adc_tdata,
     output o_m_axis_adc_tkeep,
@@ -55,10 +58,10 @@ module adc_pipeline #(
     output o_m_axis_ts_tkeep,
     output o_m_axis_ts_tvalid,
     input i_m_axis_ts_tready,
-    output o_m_axis_ts_tlast   //
+    output o_m_axis_ts_tlast,
+    // ADC sampling pulse (can be used for some external timing)
+    output o_adc_sample //
 );
-
-    localparam TS_WIDTH = TIMESTAMP_WIDTH;
 
     // Width of flattened ADC bus
     localparam ADC_FLTN_WIDTH = ADC_CHN_WIDTH * ADC_NUM_CHANNELS;
@@ -80,6 +83,9 @@ module adc_pipeline #(
     //                      Wires and registers
     // ====================================================================
 
+    // Sample rate generator
+    reg [SAMPLE_RATE_DIV_WIDTH-1:0] sample_rate_ctr;
+    reg adc_start;
     // ADC driver<->clk_gen
     wire adc_ctl_cken;
     // ADC acquisition sync pulse
@@ -89,7 +95,8 @@ module adc_pipeline #(
     wire adc_tvalid;
     wire adc_tready;
     // Timestamping mechanism
-    reg ts_armed;
+    reg [TS_RATE_DIV_WIDTH-1:0] ts_rate_ctr;
+    reg ts_start;
     reg [TS_WIDTH-1:0] ts_tdata;
     reg ts_tvalid;
     wire ts_tready;
@@ -127,6 +134,22 @@ module adc_pipeline #(
     //                          Implementation
     // ====================================================================
 
+    // Sample rate generator
+    always @(posedge i_clk or posedge i_rst) begin
+        if (i_rst) begin
+            sample_rate_ctr <= 1'd0;
+            adc_start <= 1'b0;
+        end else begin
+            if (sample_rate_ctr) begin
+                sample_rate_ctr <= sample_rate_ctr - 1'd1;
+                adc_start <= 1'b0;
+            end else begin
+                sample_rate_ctr <= i_sample_rate_div;
+                adc_start <= 1'b1;
+            end
+        end
+    end
+
     ad7357_clk_gen u_adc_clk_gen (
         .i_clk(i_clk),
         .i_rst(i_rst),
@@ -144,7 +167,7 @@ module adc_pipeline #(
         .i_clk(i_clk),
         .i_rst(i_rst),
         // .o_ready(),
-        .i_start(i_sync_acq & (|i_chn_en)),
+        .i_start(adc_start & (|i_chn_en)),
         .o_sample(adc_sample),
         .o_m_axis_tdata(adc_tdata),
         .o_m_axis_tvalid(adc_tvalid),
@@ -156,20 +179,27 @@ module adc_pipeline #(
     );
 
     // Timestamping mechanism
-    // Arms on i_sync_ts, fires on adc_sample, outputs TS AXI-S stream
+    // Fires on each (i_ts_rate_div+1)-th ADC sample,
+    // puts data into the TS AXI-S stream.
     always @(posedge i_clk or posedge i_rst) begin
         if (i_rst) begin
-            ts_armed <= 1'b0;
+            ts_rate_ctr <= 1'd0;
+            ts_start <= 1'b0;
             ts_tdata <= 1'b0;
             ts_tvalid <= 1'b0;
         end else begin
-            if (i_sync_ts) begin
-                ts_armed <= 1'b1;
+            if (adc_sample) begin
+                if (ts_rate_ctr) begin
+                    ts_rate_ctr <= ts_rate_ctr - 1'd1;
+                end else begin
+                    ts_rate_ctr <= i_ts_rate_div;
+                    ts_start <= 1'b1;
+                end
             end
-            if (ts_armed && adc_sample) begin
-                ts_armed <= 1'b0;
+            if (adc_sample && !ts_rate_ctr) begin
+                // ts_armed <= 1'b0;
                 if (!ts_tvalid || ts_tready) begin
-                    ts_tdata <= i_timestamp;
+                    ts_tdata <= i_ts;
                     ts_tvalid <= 1'b1;
                 end
             end else if (ts_tvalid && ts_tready) begin
@@ -327,7 +357,7 @@ module adc_pipeline #(
     axis_adapter #(
         .S_DATA_WIDTH(TS_WIDTH),
         .S_KEEP_ENABLE(1),
-        .S_KEEP_WIDTH(TIMESTAMP_BYTES),
+        .S_KEEP_WIDTH(TS_BYTES),
         .M_DATA_WIDTH(8),
         .M_KEEP_ENABLE(1),
         .M_KEEP_WIDTH(1),
@@ -339,7 +369,7 @@ module adc_pipeline #(
         .rst(i_rst),
         //
         .s_axis_tdata(dem_ts_tdata),
-        .s_axis_tkeep({TIMESTAMP_BYTES{1'b1}}),
+        .s_axis_tkeep({TS_BYTES{1'b1}}),
         .s_axis_tvalid(dem_ts_tvalid),
         .s_axis_tready(dem_ts_tready),
         .s_axis_tlast(dem_ts_tlast),
@@ -350,5 +380,7 @@ module adc_pipeline #(
         .m_axis_tready(i_m_axis_ts_tready),
         .m_axis_tlast(o_m_axis_ts_tlast)
     );
+
+    assign o_adc_sample = adc_sample;
 
 endmodule

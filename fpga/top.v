@@ -71,6 +71,10 @@ module top (
     // DAC8551 SPI DAC
     localparam DAC_CLK_DIV = 20;
 
+    // ADC
+    localparam ADC_SAMPLE_RATE_DIV_WIDTH = 24;
+    localparam ADC_TS_RATE_DIV_WIDTH = 8;
+
     // TDC:
     // - target gate frequency = 100 Hz
     // - meas_fast is tuned so that 1 MHz input results in 100 Hz meas frequency
@@ -130,6 +134,8 @@ module top (
     wire csr_tdc_con_gate_finc;
     // CSRs: adc
     wire [3:0] csr_adc_con_adc_en;
+    wire [ADC_SAMPLE_RATE_DIV_WIDTH-1:0] csr_adc_sample_rate_div;
+    wire [ADC_TS_RATE_DIV_WIDTH-1:0] csr_adc_ts_rate_div;
     // CSRs: ftun
     wire [7:0] csr_ftun_vtune_set_dac_low;
     wire [15:0] csr_ftun_vtune_set_dac_high;
@@ -360,123 +366,6 @@ module top (
         .o_rst_q(sys_rstd)
     );
 
-    // --------------------------------------------------
-    //      ADCT - ADC timing generators
-    // --------------------------------------------------
-
-
-    // Sample rate generators (SRATE pulses)
-    //
-    //                      +----> [adct_srate1_psc] ----> adct_srate1 ----> [ADC1]
-    //  sys_clk (80MHz) ->--+
-    //                      +----> [adct_srate2_psc] ----> adct_srate2 ----> [ADC2]
-    //
-    wire adct_srate1, adct_srate2;
-
-    // CSR (control & status register) values
-    wire csr_adct_srate1_en, csr_adct_srate2_en;
-    wire [7:0] csr_adct_srate1_psc_div, csr_adct_srate2_psc_div;
-
-    fastcounter #(
-        .NBITS(26)
-    ) adct_srate1_psc (
-        .i_clk(sys_clk),
-        .i_rst(sys_rst),
-        .i_mode(2'd0),      // AUTORELOAD
-        .i_dir(1'b0),       // DOWN
-        // .i_en(csr_adct_srate1_en),
-            .i_en(1'b1),
-        .i_load(1'b0),
-        // .i_load_q(csr_adct_srate1_psc_div),
-            .i_load_q(26'hFFFFFF),
-        .o_carry_dly(adct_srate1)
-    );
-
-    // fastcounter #(
-    //     .NBITS(8)
-    // ) adct_srate2_psc (
-    //     .i_clk(sys_clk),
-    //     .i_rst(sys_rst),
-    //     .i_mode(2'd0),      // AUTORELOAD
-    //     .i_dir(1'b0),       // DOWN
-    //     .i_en(csr_adct_srate2_en),
-    //     .i_load(1'b0),
-    //     .i_load_q(csr_adct_srate2_psc_div),
-    //     .o_carry_dly(adct_srate2)
-    // );
-
-    //  Timing pulse generators
-    //
-    //  adct_srate1 --> [adct_puls1_psc] --> adct_puls1 --> [adct_puls1_dly] --> adct_puls1_d --> [adct_puls1_fmr] --> adct_puls1_w
-    //  adct_srate2 --> [adct_puls2_psc] --> adct_puls2 --> [adct_puls2_dly] --> adct_puls2_d --> [adct_puls2_fmr] --> adct_puls2_w
-    //
-
-    wire adct_puls1, adct_puls2;        // single-cycle pulses synced with adct_srate*
-    wire adct_puls1_d, adct_puls2_d;    // single-cycle pulses delayed w.r.t adct_puls*
-    wire adct_puls1_w, adct_puls2_w;    // width-controlled version of adct_puls*_d
-
-    // CSR values
-    wire csr_adct_puls1_en, csr_adct_puls2_en;
-    wire [22:0] csr_adct_puls1_psc_div, csr_adct_puls2_psc_div;
-    wire [8:0] csr_adct_puls1_dly, csr_adct_puls2_dly;
-    wire [15:0] csr_adct_puls1_pwidth, csr_adct_puls2_pwidth;
-
-    // Pulse frequency prescalers
-    fastcounter #(
-        .NBITS(23)
-    ) adct_puls1_psc (
-        .i_clk(sys_clk),
-        .i_rst(sys_rst),
-        .i_mode(2'd0),      // AUTORELOAD
-        .i_dir(1'b0),       // DOWN
-        // .i_en(adct_srate1 & csr_adct_puls1_en),
-            .i_en(adct_srate1),
-        .i_load(1'b0),
-        // .i_load_q(csr_adct_puls1_psc_div),
-            .i_load_q(23'd9),
-        .o_carry_dly(adct_puls1)
-    );
-
-    // fastcounter #(
-    //     .NBITS(23)
-    // ) adct_puls2_psc (
-    //     .i_clk(sys_clk),
-    //     .i_rst(sys_rst),
-    //     .i_mode(2'd0),      // AUTORELOAD
-    //     .i_dir(1'b0),       // DOWN
-    //     .i_en(adct_srate2 & csr_adct_puls2_en),
-    //     .i_load(1'b0),
-    //     .i_load_q(csr_adct_puls2_psc_div),
-    //     .o_carry_dly(adct_puls2)
-    // );
-
-    // // Pulse micro-delay (delay is in adc_clk periods, max delay is up to 2x adc_srate periods)
-    // fastcounter #(
-    //     .NBITS(9)
-    // ) adct_puls1_dly (
-    //     .i_clk(sys_clk),
-    //     .i_rst(sys_rst),
-    //     .i_mode(2'd1),      // ONESHOT
-    //     .i_dir(1'b0),       // DOWN
-    //     .i_en(1'b1),
-    //     .i_load(adct_puls1),
-    //     .i_load_q(csr_adct_puls1_dly),
-    //     .o_epulse(adct_puls1_d)
-    // );
-
-    // fastcounter #(
-    //     .NBITS(9)
-    // ) adct_puls2_dly (
-    //     .i_clk(sys_clk),
-    //     .i_rst(sys_rst),
-    //     .i_mode(2'd1),      // ONESHOT
-    //     .i_dir(1'b0),       // DOWN
-    //     .i_en(1'b1),
-    //     .i_load(adct_puls2),
-    //     .i_load_q(csr_adct_puls2_dly),
-    //     .o_epulse(adct_puls2_d)
-    // );
-
     // // Pulse width formers (width specified in adc_srate periods)
     // fastcounter #(
     //     .NBITS(16)  // enough for 16ms pulse @ adc_srate=4MHz
@@ -523,11 +412,13 @@ module top (
     // --------------------------------------------------
 
     adc_pipeline #(
+        .SAMPLE_RATE_DIV_WIDTH(ADC_SAMPLE_RATE_DIV_WIDTH),
         .ADC_NUM_CHANNELS(4),
         .ADC_CHN_WIDTH(14),
         .ADC_CHN_BYTES(2),
-        .TIMESTAMP_WIDTH(HWTIME_WIDTH),
-        .TIMESTAMP_BYTES(HWTIME_BYTES),
+        .TS_RATE_DIV_WIDTH(ADC_TS_RATE_DIV_WIDTH),
+        .TS_WIDTH(HWTIME_WIDTH),
+        .TS_BYTES(HWTIME_BYTES),
         .FIFO_DEPTH(512)
     ) u_adc_pipeline (
         .i_clk(sys_clk),
@@ -539,12 +430,10 @@ module top (
         .i_adc_sdata_ddr_h(adc_sdata_ddr_h),
         .i_adc_sdata_ddr_l(adc_sdata_ddr_l),
         //
-        .i_timestamp(hwtime_q1),
-        //
         .i_chn_en(csr_adc_con_adc_en),
-        //
-        .i_sync_acq(adct_srate1),
-        .i_sync_ts(adct_puls1),
+        .i_sample_rate_div(csr_adc_sample_rate_div),
+        .i_ts(hwtime_q1),
+        .i_ts_rate_div(csr_adc_ts_rate_div),
         //
         .o_m_axis_adc_tdata(axis_adc_tdata),
         .o_m_axis_adc_tkeep(axis_adc_tkeep),
@@ -651,8 +540,12 @@ module top (
         .SYS_PLL_DIVR_INITIAL_VALUE(SYS_PLL_DIVR),
         .SYS_PLL_DIVF_INITIAL_VALUE(SYS_PLL_DIVF),
         .SYS_PLL_DIVQ_INITIAL_VALUE(SYS_PLL_DIVQ),
-        .TDC_DIV_GATE_VAL_INITIAL_VALUE(TDC_GATE_DIV),
-        .TDC_DIV_MEAS_FAST_VAL_INITIAL_VALUE(TDC_MEAS_FAST_DIV)
+        .TDC_PLL_DIVR_INITIAL_VALUE(TDC_PLL_DIVR),
+        .TDC_PLL_DIVF_INITIAL_VALUE(TDC_PLL_DIVF),
+        .TDC_PLL_DIVQ_INITIAL_VALUE(TDC_PLL_DIVQ),
+        .TDC_PLL_SS_DIVFSPAN_INITIAL_VALUE(TDC_PLL_SS_DIVFSPAN),
+        .TDC_DIV_GATE_INITIAL_VALUE(TDC_GATE_DIV),
+        .TDC_DIV_MEAS_FAST_INITIAL_VALUE(TDC_MEAS_FAST_DIV)
     ) lwdo_regs_i (
         // SYSCON
         .i_clk(sys_clk),
@@ -674,7 +567,7 @@ module top (
         // SYS
         .o_sys_con_sys_rst(csr_sys_con_sys_rst),
         // HWTIME
-        .i_hwtime_cnt_cnt(hwtime_q1),
+        .i_hwtime_cnt(hwtime_q1),
         // TDC
         .o_tdc_con_en(csr_tdc_con_en),
         .o_tdc_con_clk_meas_fast(csr_tdc_con_clk_meas_fast),
@@ -682,6 +575,8 @@ module top (
         .o_tdc_con_gate_finc(csr_tdc_con_gate_finc),
         // ADC
         .o_adc_con_adc_en(csr_adc_con_adc_en),
+        .o_adc_sample_rate_div(csr_adc_sample_rate_div),
+        .o_adc_ts_rate_div(csr_adc_ts_rate_div),
         // FTUN
         .o_ftun_vtune_set_dac_high(csr_ftun_vtune_set_dac_high),
         .o_ftun_vtune_set_dac_high_write_trigger(csr_ftun_vtune_set_dac_high_write_trigger)

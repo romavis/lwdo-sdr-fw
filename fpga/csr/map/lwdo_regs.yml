@@ -17,8 +17,7 @@ register_blocks:
       - name: magic
         comment: "Read-only magic value"
         bit_fields:
-        - name: magic
-          bit_assignment: { width: 32 }
+        - bit_assignment: { width: 32 }
           type: rof
           initial_value: 0x4544574C # 'LWDO'
 
@@ -75,11 +74,9 @@ register_blocks:
 
       registers:
       - name: cnt
-
+        comment: "HWTIME counter value"
         bit_fields:
-        - name: cnt
-          comment: "HWTIME counter value"
-          bit_assignment: { width: 32 }
+        - bit_assignment: { width: 32 }
           type: ro
 
     # ------------------------------------------------------
@@ -117,21 +114,37 @@ register_blocks:
           type: rw
           initial_value: 0
 
-      - name: div_gate
-
+      - name: pll
+        comment: "Read-only PLL configuration bits (for host to compute tdc_clk)"
         bit_fields:
-        - name: val
-          comment: "Divider for clk_gate"
-          bit_assignment: { width: 32 }
+        - name: divr
+          bit_assignment: { width: 4 }
+          type: rof
+          initial_value: { default: 0 }
+        - name: divf
+          bit_assignment: { width: 7 }
+          type: rof
+          initial_value: { default: 0 }
+        - name: divq
+          bit_assignment: { width: 3 }
+          type: rof
+          initial_value: { default: 0 }
+        - name: ss_divfspan
+          bit_assignment: { width: 7 }
+          type: rof
+          initial_value: { default: 0 }
+
+      - name: div_gate
+        comment: "Divider for clk_gate"
+        bit_fields:
+        - bit_assignment: { width: 32 }
           type: rof
           initial_value: { default: 0 }
 
       - name: div_meas_fast
-
+        comment: "Fast clk_meas divider (applied only when clk_meas_fast is set)"
         bit_fields:
-        - name: val
-          comment: "Fast clk_meas divider (applied only when clk_meas_fast is set)"
-          bit_assignment: { width: 32 }
+        - bit_assignment: { width: 32 }
           type: rof
           initial_value: { default: 0 }
 
@@ -145,13 +158,26 @@ register_blocks:
       registers:
       - name: con
         comment: "ADC control"
-
         bit_fields:
         - name: adc_en
           comment: "Enable ADC channels 1-4"
           bit_assignment: { width: 4 }
           type: rw
           initial_value: 0
+      
+      - name: sample_rate_div
+        comment: "ADC sample rate divider"
+        bit_field:
+        - bit_assignment: { width: 24 }
+          type: rw
+          initial_value: 0xFFFFFF
+
+      - name: ts_rate_div
+        comment: "Timestamping rate divider"
+        bit_field:
+        - bit_assignment: { width: 8 }
+          type: rw
+          initial_value: 0xFF
 
     # ------------------------------------------------------
     #   FTUN - frequency oscillator tuning

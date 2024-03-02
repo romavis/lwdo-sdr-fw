@@ -11,9 +11,12 @@
 |[sys.pll](#lwdo_regs-sys-pll)|0x00c|
 |[hwtime.cnt](#lwdo_regs-hwtime-cnt)|0x020|
 |[tdc.con](#lwdo_regs-tdc-con)|0x040|
-|[tdc.div_gate](#lwdo_regs-tdc-div_gate)|0x044|
-|[tdc.div_meas_fast](#lwdo_regs-tdc-div_meas_fast)|0x048|
+|[tdc.pll](#lwdo_regs-tdc-pll)|0x044|
+|[tdc.div_gate](#lwdo_regs-tdc-div_gate)|0x048|
+|[tdc.div_meas_fast](#lwdo_regs-tdc-div_meas_fast)|0x04c|
 |[adc.con](#lwdo_regs-adc-con)|0x060|
+|[adc.sample_rate_div](#lwdo_regs-adc-sample_rate_div)|0x064|
+|[adc.ts_rate_div](#lwdo_regs-adc-ts_rate_div)|0x068|
 |[ftun.vtune_set](#lwdo_regs-ftun-vtune_set)|0x080|
 |[test.rw](#lwdo_regs-test-rw)|0x3e0|
 
@@ -78,10 +81,12 @@
     * 0x020
 * type
     * default
+* comment
+    * HWTIME counter value
 
 |name|bit_assignments|type|initial_value|reference|labels|comment|
 |:--|:--|:--|:--|:--|:--|:--|
-|cnt|[31:0]|ro||||HWTIME counter value|
+|cnt|[31:0]|ro|||||
 
 ### <div id="lwdo_regs-tdc-con"></div>tdc.con
 
@@ -99,27 +104,47 @@
 |gate_fdec|[2]|rw|0x0|||Set this to decrease the frequency of divided clk_gate (increases clk_gate divider)|
 |gate_finc|[3]|rw|0x0|||Set this to increase the frequency of divided clk_gate (decreases clk_gate divider)|
 
-### <div id="lwdo_regs-tdc-div_gate"></div>tdc.div_gate
+### <div id="lwdo_regs-tdc-pll"></div>tdc.pll
 
 * offset_address
     * 0x044
 * type
     * default
+* comment
+    * Read-only PLL configuration bits (for host to compute tdc_clk)
 
 |name|bit_assignments|type|initial_value|reference|labels|comment|
 |:--|:--|:--|:--|:--|:--|:--|
-|val|[31:0]|rof|default: 0x00000000|||Divider for clk_gate|
+|divr|[3:0]|rof|default: 0x0||||
+|divf|[10:4]|rof|default: 0x00||||
+|divq|[13:11]|rof|default: 0x0||||
+|ss_divfspan|[20:14]|rof|default: 0x00||||
 
-### <div id="lwdo_regs-tdc-div_meas_fast"></div>tdc.div_meas_fast
+### <div id="lwdo_regs-tdc-div_gate"></div>tdc.div_gate
 
 * offset_address
     * 0x048
 * type
     * default
+* comment
+    * Divider for clk_gate
 
 |name|bit_assignments|type|initial_value|reference|labels|comment|
 |:--|:--|:--|:--|:--|:--|:--|
-|val|[31:0]|rof|default: 0x00000000|||Fast clk_meas divider (applied only when clk_meas_fast is set)|
+|div_gate|[31:0]|rof|default: 0x00000000||||
+
+### <div id="lwdo_regs-tdc-div_meas_fast"></div>tdc.div_meas_fast
+
+* offset_address
+    * 0x04c
+* type
+    * default
+* comment
+    * Fast clk_meas divider (applied only when clk_meas_fast is set)
+
+|name|bit_assignments|type|initial_value|reference|labels|comment|
+|:--|:--|:--|:--|:--|:--|:--|
+|div_meas_fast|[31:0]|rof|default: 0x00000000||||
 
 ### <div id="lwdo_regs-adc-con"></div>adc.con
 
@@ -133,6 +158,32 @@
 |name|bit_assignments|type|initial_value|reference|labels|comment|
 |:--|:--|:--|:--|:--|:--|:--|
 |adc_en|[3:0]|rw|0x0|||Enable ADC channels 1-4|
+
+### <div id="lwdo_regs-adc-sample_rate_div"></div>adc.sample_rate_div
+
+* offset_address
+    * 0x064
+* type
+    * default
+* comment
+    * ADC sample rate divider
+
+|name|bit_assignments|type|initial_value|reference|labels|comment|
+|:--|:--|:--|:--|:--|:--|:--|
+|sample_rate_div|[23:0]|rw|0xffffff||||
+
+### <div id="lwdo_regs-adc-ts_rate_div"></div>adc.ts_rate_div
+
+* offset_address
+    * 0x068
+* type
+    * default
+* comment
+    * Timestamping rate divider
+
+|name|bit_assignments|type|initial_value|reference|labels|comment|
+|:--|:--|:--|:--|:--|:--|:--|
+|ts_rate_div|[7:0]|rw|0xff||||
 
 ### <div id="lwdo_regs-ftun-vtune_set"></div>ftun.vtune_set
 
