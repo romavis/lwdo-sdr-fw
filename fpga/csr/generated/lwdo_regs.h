@@ -127,6 +127,18 @@
 #define LWDO_REGS_PPS_PULSE_WIDTH_BYTE_WIDTH 4
 #define LWDO_REGS_PPS_PULSE_WIDTH_BYTE_SIZE 4
 #define LWDO_REGS_PPS_PULSE_WIDTH_BYTE_OFFSET 0xa8
+#define LWDO_REGS_IO_CLKOUT_SOURCE_BIT_WIDTH 5
+#define LWDO_REGS_IO_CLKOUT_SOURCE_BIT_MASK 0x1f
+#define LWDO_REGS_IO_CLKOUT_SOURCE_BIT_OFFSET 0
+#define LWDO_REGS_IO_CLKOUT_INV_BIT_WIDTH 1
+#define LWDO_REGS_IO_CLKOUT_INV_BIT_MASK 0x1
+#define LWDO_REGS_IO_CLKOUT_INV_BIT_OFFSET 30
+#define LWDO_REGS_IO_CLKOUT_MODE_BIT_WIDTH 1
+#define LWDO_REGS_IO_CLKOUT_MODE_BIT_MASK 0x1
+#define LWDO_REGS_IO_CLKOUT_MODE_BIT_OFFSET 31
+#define LWDO_REGS_IO_CLKOUT_BYTE_WIDTH 4
+#define LWDO_REGS_IO_CLKOUT_BYTE_SIZE 4
+#define LWDO_REGS_IO_CLKOUT_BYTE_OFFSET 0xc0
 #define LWDO_REGS_TEST_RW_VAL_BIT_WIDTH 32
 #define LWDO_REGS_TEST_RW_VAL_BIT_MASK 0xffffffff
 #define LWDO_REGS_TEST_RW_VAL_BIT_OFFSET 0
@@ -161,6 +173,9 @@ typedef struct {
   uint32_t rate_div;
   uint32_t pulse_width;
 } lwdo_regs_pps_t;
+typedef struct {
+  uint32_t clkout;
+} lwdo_regs_io_t;
 typedef struct {
   uint32_t rw;
 } lwdo_regs_test_t;
@@ -203,7 +218,7 @@ typedef struct {
   uint32_t __reserved_0x0b4;
   uint32_t __reserved_0x0b8;
   uint32_t __reserved_0x0bc;
-  uint32_t __reserved_0x0c0;
+  lwdo_regs_io_t io;
   uint32_t __reserved_0x0c4;
   uint32_t __reserved_0x0c8;
   uint32_t __reserved_0x0cc;

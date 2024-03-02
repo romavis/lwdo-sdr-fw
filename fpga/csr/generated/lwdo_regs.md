@@ -21,6 +21,7 @@
 |[pps.con](#lwdo_regs-pps-con)|0x0a0|
 |[pps.rate_div](#lwdo_regs-pps-rate_div)|0x0a4|
 |[pps.pulse_width](#lwdo_regs-pps-pulse_width)|0x0a8|
+|[io.clkout](#lwdo_regs-io-clkout)|0x0c0|
 |[test.rw](#lwdo_regs-test-rw)|0x3e0|
 
 ### <div id="lwdo_regs-sys-magic"></div>sys.magic
@@ -103,7 +104,7 @@
 |name|bit_assignments|type|initial_value|reference|labels|comment|
 |:--|:--|:--|:--|:--|:--|:--|
 |en|[0]|rw|0x0|||Enable TDC|
-|meas_div_en|[1]|rw|0x0|||If 1, divide clk_meas; if 0 then use undivided clk_meas. Set this when clk_meas is fast (more than ~1 kHz)|
+|meas_div_en|[1]|rw|0x0|||1: divide clk_meas; 0: use undivided clk_meas. Set this when clk_meas is fast (more than ~1 kHz)|
 |gate_fdec|[2]|rw|0x0|||Set this to decrease the frequency of divided clk_gate (increases clk_gate divider)|
 |gate_finc|[3]|rw|0x0|||Set this to increase the frequency of divided clk_gate (decreases clk_gate divider)|
 
@@ -240,6 +241,21 @@
 |name|bit_assignments|type|initial_value|reference|labels|comment|
 |:--|:--|:--|:--|:--|:--|:--|
 |pulse_width|[27:0]|rw|0x0010000||||
+
+### <div id="lwdo_regs-io-clkout"></div>io.clkout
+
+* offset_address
+    * 0x0c0
+* type
+    * default
+* comment
+    * Determines what goes to the CLK_OUT connector
+
+|name|bit_assignments|type|initial_value|reference|labels|comment|
+|:--|:--|:--|:--|:--|:--|:--|
+|source|[4:0]|rw|0x00|||Which clock signal to output (valid only if mode=0)|
+|inv|[30]|rw|0x0|||Invert CLK_OUT (valid only if mode=0)|
+|mode|[31]|rw|0x0|||0: output clock signal from FPGA; 1: output low-jitter VCTCXO clock directly via hw mux|
 
 ### <div id="lwdo_regs-test-rw"></div>test.rw
 

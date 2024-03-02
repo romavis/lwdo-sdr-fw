@@ -97,7 +97,7 @@ register_blocks:
           initial_value: 0
 
         - name: meas_div_en
-          comment: "If 1, divide clk_meas; if 0 then use undivided clk_meas. Set this when clk_meas is fast (more than ~1 kHz)"
+          comment: "1: divide clk_meas; 0: use undivided clk_meas. Set this when clk_meas is fast (more than ~1 kHz)"
           bit_assignment: { width: 1 }
           type: rw
           initial_value: 0
@@ -232,6 +232,33 @@ register_blocks:
         - bit_assignment: { width: 28 }
           type: rw
           initial_value: 0x10000
+
+    - name: io
+      offset_address: 0x00C0
+      comment: "IO - input-output controls"
+
+      registers:
+      - name: clkout
+        comment: "Determines what goes to the CLK_OUT connector"
+        bit_fields:
+        - name: source
+          comment: "Which clock signal to output (valid only if mode=0)"
+          bit_assignment: { width: 5 }
+          type: rw
+          initial_value: 0
+
+        - name: inv
+          comment: "Invert CLK_OUT (valid only if mode=0)"
+          bit_assignment: { lsb: 30, width: 1 }
+          type: rw
+          initial_value: 0
+
+        - name: mode
+          comment: "0: output clock signal from FPGA; 1: output low-jitter VCTCXO clock directly via hw mux"
+          bit_assignment: { lsb: 31, width: 1 }
+          type: rw
+          initial_value: 0
+
 
     # ------------------------------------------------------
     #   TEST - test registers

@@ -116,6 +116,9 @@ module top (
     wire sys_pll_lock;
     wire tdc_pll_lock;
 
+    // Wire "interesting" clocks here to be able to output them later via muxes
+    reg [31:0] clocks;
+
 
     // ----------------------------------------------- sys_clk domain -----------------------------------------------
     wire sys_clk;
@@ -159,6 +162,10 @@ module top (
     wire csr_pps_con_en;
     wire [PPS_RATE_DIV_WIDTH-1:0] csr_pps_rate_div;
     wire [PPS_PWIDTH_WIDTH-1:0] csr_pps_pulse_width;
+    // CSRs: io
+    wire [4:0] csr_io_clkout_source;
+    wire csr_io_clkout_inv;
+    wire csr_io_clkout_mode;
 
     // Wishbone bus (master: control port)
     wire wbm_cp_cyc;
@@ -615,7 +622,11 @@ module top (
         // PPS
         .o_pps_con_en(csr_pps_con_en),
         .o_pps_rate_div(csr_pps_rate_div),
-        .o_pps_pulse_width(csr_pps_pulse_width)
+        .o_pps_pulse_width(csr_pps_pulse_width),
+        // IO
+        .o_io_clkout_source(csr_io_clkout_source),
+        .o_io_clkout_inv(csr_io_clkout_inv),
+        .o_io_clkout_mode(csr_io_clkout_mode)
     );
 
     // ----------------------------------------------------------------------
@@ -850,6 +861,28 @@ module top (
 
     // ===============================================================================================================
     // =========================                                                             =========================
+    // =========================                     CLOCKS REGISTER                         =========================
+    // =========================                                                             =========================
+    // ===============================================================================================================
+
+    always @* begin
+        clocks = 1'd0;
+
+        // fixed
+        clocks[0] = 1'b0;   // logic 0
+        clocks[1] = p_clk_20mhz_gbin2;
+        clocks[2] = p_clk_ref_in;
+        clocks[3] = pps_formed;
+        // experimental
+        clocks[27] = pps_sample;
+        clocks[28] = adc_sample;
+        clocks[29] = tdc_clk;
+        clocks[30] = ft_clk;
+        clocks[31] = sys_clk;
+    end
+
+    // ===============================================================================================================
+    // =========================                                                             =========================
     // =========================                    OUTPUT PIN DRIVERS                       =========================
     // =========================                                                             =========================
     // ===============================================================================================================
@@ -862,8 +895,13 @@ module top (
     // ------------------------
     // CLK OUT
     // ------------------------
-    assign p_clk_out_sel = 1'b1;
-    assign p_clk_out = ~tdc_clk;
+
+    // sel controls external LVCMOS mux:
+    // sel=0 - output clock from VCTCXO; sel=1 - output ~p_clk_out
+    assign p_clk_out_sel = ~csr_io_clkout_mode;
+    assign p_clk_out =
+        (~csr_io_clkout_mode)
+        & ~(csr_io_clkout_inv ^ clocks[csr_io_clkout_source]);
 
     // ------------------------
     // LEDs
