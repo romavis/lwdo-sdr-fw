@@ -202,6 +202,37 @@ register_blocks:
           type: rwtrg
           initial_value: 0x8000
 
+    # ------------------------------------------------------
+    #   PPS - pulse-per-second generator
+    # ------------------------------------------------------
+    - name: pps
+      offset_address: 0x00A0
+      comment: "PPS - pulse-per-second generator"
+
+      registers:
+      - name: con
+        comment: "PPS control"
+        bit_fields:
+        - name: en
+          comment: "Enable PPS generator"
+          bit_assignment: { width: 1 }
+          type: rw
+          initial_value: 0
+      
+      - name: rate_div
+        comment: "PPS rate divider"
+        bit_field:
+        - bit_assignment: { width: 28 }
+          type: rw
+          initial_value: 0xFFFFFFF
+
+      - name: pulse_width
+        comment: "PPS pulse width control"
+        bit_field:
+        - bit_assignment: { width: 28 }
+          type: rw
+          initial_value: 0x10000
+
     # # ------------------------------------------------------
     # #     ADCT - analog-to-digital converter timing
     # # ------------------------------------------------------

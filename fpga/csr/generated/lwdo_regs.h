@@ -109,6 +109,24 @@
 #define LWDO_REGS_FTUN_VTUNE_SET_BYTE_WIDTH 4
 #define LWDO_REGS_FTUN_VTUNE_SET_BYTE_SIZE 4
 #define LWDO_REGS_FTUN_VTUNE_SET_BYTE_OFFSET 0x80
+#define LWDO_REGS_PPS_CON_EN_BIT_WIDTH 1
+#define LWDO_REGS_PPS_CON_EN_BIT_MASK 0x1
+#define LWDO_REGS_PPS_CON_EN_BIT_OFFSET 0
+#define LWDO_REGS_PPS_CON_BYTE_WIDTH 4
+#define LWDO_REGS_PPS_CON_BYTE_SIZE 4
+#define LWDO_REGS_PPS_CON_BYTE_OFFSET 0xa0
+#define LWDO_REGS_PPS_RATE_DIV_BIT_WIDTH 28
+#define LWDO_REGS_PPS_RATE_DIV_BIT_MASK 0xfffffff
+#define LWDO_REGS_PPS_RATE_DIV_BIT_OFFSET 0
+#define LWDO_REGS_PPS_RATE_DIV_BYTE_WIDTH 4
+#define LWDO_REGS_PPS_RATE_DIV_BYTE_SIZE 4
+#define LWDO_REGS_PPS_RATE_DIV_BYTE_OFFSET 0xa4
+#define LWDO_REGS_PPS_PULSE_WIDTH_BIT_WIDTH 28
+#define LWDO_REGS_PPS_PULSE_WIDTH_BIT_MASK 0xfffffff
+#define LWDO_REGS_PPS_PULSE_WIDTH_BIT_OFFSET 0
+#define LWDO_REGS_PPS_PULSE_WIDTH_BYTE_WIDTH 4
+#define LWDO_REGS_PPS_PULSE_WIDTH_BYTE_SIZE 4
+#define LWDO_REGS_PPS_PULSE_WIDTH_BYTE_OFFSET 0xa8
 #define LWDO_REGS_TEST_RW_VAL_BIT_WIDTH 32
 #define LWDO_REGS_TEST_RW_VAL_BIT_MASK 0xffffffff
 #define LWDO_REGS_TEST_RW_VAL_BIT_OFFSET 0
@@ -138,6 +156,11 @@ typedef struct {
 typedef struct {
   uint32_t vtune_set;
 } lwdo_regs_ftun_t;
+typedef struct {
+  uint32_t con;
+  uint32_t rate_div;
+  uint32_t pulse_width;
+} lwdo_regs_pps_t;
 typedef struct {
   uint32_t rw;
 } lwdo_regs_test_t;
@@ -174,9 +197,7 @@ typedef struct {
   uint32_t __reserved_0x094;
   uint32_t __reserved_0x098;
   uint32_t __reserved_0x09c;
-  uint32_t __reserved_0x0a0;
-  uint32_t __reserved_0x0a4;
-  uint32_t __reserved_0x0a8;
+  lwdo_regs_pps_t pps;
   uint32_t __reserved_0x0ac;
   uint32_t __reserved_0x0b0;
   uint32_t __reserved_0x0b4;

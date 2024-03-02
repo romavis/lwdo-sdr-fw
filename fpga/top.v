@@ -83,6 +83,10 @@ module top (
     localparam TDC_GATE_DIV = 200_000;
     localparam TDC_MEAS_FAST_DIV = 10_000;
 
+    // PPS
+    localparam PPS_RATE_DIV_WIDTH = 28;
+    localparam PPS_PWIDTH_WIDTH = 28;
+
     // Wishbone bus
     localparam WB_ADDR_WIDTH = 8;
     localparam WB_DATA_WIDTH = 32;
@@ -94,6 +98,7 @@ module top (
     localparam CP_TID_ADC = 8'h02;
     localparam CP_TID_ADC_TS = 8'h03;
     localparam CP_TID_TDC = 8'h04;
+    localparam CP_TID_PPS_TS = 8'h05;
 
     // FTDI control port AsyncFIFO depth (bytes)
     localparam FT_AFIFO_DEPTH = 256;
@@ -125,6 +130,13 @@ module top (
     wire [3:0] adc_sdata_ddr_h;
     wire [3:0] adc_sdata_ddr_l;
 
+    // ADC
+    wire adc_sample;
+
+    // PPS
+    wire pps_sample;
+    wire pps_formed;
+
     // CSRs: sys
     wire csr_sys_con_sys_rst;
     // CSRs: tdc
@@ -140,6 +152,10 @@ module top (
     wire [7:0] csr_ftun_vtune_set_dac_low;
     wire [15:0] csr_ftun_vtune_set_dac_high;
     wire csr_ftun_vtune_set_dac_high_write_trigger;
+    // CSRs: pps
+    wire csr_pps_con_en;
+    wire [PPS_RATE_DIV_WIDTH-1:0] csr_pps_rate_div;
+    wire [PPS_PWIDTH_WIDTH-1:0] csr_pps_pulse_width;
 
     // Wishbone bus (master: control port)
     wire wbm_cp_cyc;
@@ -174,6 +190,13 @@ module top (
     wire axis_tdc_tvalid;
     wire axis_tdc_tready;
     wire axis_tdc_tlast;
+
+    // AXI-S: serialized PPS TS data
+    wire [7:0] axis_pps_ts_tdata;
+    wire axis_pps_ts_tkeep;
+    wire axis_pps_ts_tvalid;
+    wire axis_pps_ts_tready;
+    wire axis_pps_ts_tlast;
 
     // AXI-S: wbcon Tx stream
     wire axis_wbcon_tx_tvalid;
@@ -350,9 +373,9 @@ module top (
     // =========================                                                             =========================
     // ===============================================================================================================
 
-    // --------------------------------------------------
+    // ----------------------------------------------------------------------
     // System reset generator
-    // --------------------------------------------------
+    // ----------------------------------------------------------------------
 
     // sys_rst is async assert, sync de-assert
     // Asserted on / by:
@@ -366,36 +389,9 @@ module top (
         .o_rst_q(sys_rstd)
     );
 
-    // // Pulse width formers (width specified in adc_srate periods)
-    // fastcounter #(
-    //     .NBITS(16)  // enough for 16ms pulse @ adc_srate=4MHz
-    // ) adct_puls1_fmr (
-    //     .i_clk(sys_clk),
-    //     .i_rst(sys_rst),
-    //     .i_mode(2'd1),      // ONESHOT
-    //     .i_dir(1'b0),       // DOWN
-    //     .i_en(adct_srate1),
-    //     .i_load(adct_puls1_d),
-    //     .i_load_q(csr_adct_puls1_pwidth),
-    //     .o_nend(adct_puls1_w)
-    // );
-
-    // fastcounter #(
-    //     .NBITS(16)
-    // ) adct_puls2_fmr (
-    //     .i_clk(sys_clk),
-    //     .i_rst(sys_rst),
-    //     .i_mode(2'd1),      // ONESHOT
-    //     .i_dir(1'b0),       // DOWN
-    //     .i_en(adct_srate2),
-    //     .i_load(adct_puls2_d),
-    //     .i_load_q(csr_adct_puls2_pwidth),
-    //     .o_nend(adct_puls2_w)
-    // );
-
-    // --------------------------------------------------
+    // ----------------------------------------------------------------------
     //                  HWTIME counter
-    // --------------------------------------------------
+    // ----------------------------------------------------------------------
 
     always @(posedge sys_clk or posedge sys_rst) begin
         if (sys_rst) begin
@@ -407,9 +403,9 @@ module top (
         end
     end
 
-    // --------------------------------------------------
+    // ----------------------------------------------------------------------
     //     ADC - Analog-to-digital converters
-    // --------------------------------------------------
+    // ----------------------------------------------------------------------
 
     adc_pipeline #(
         .SAMPLE_RATE_DIV_WIDTH(ADC_SAMPLE_RATE_DIV_WIDTH),
@@ -445,12 +441,14 @@ module top (
         .o_m_axis_ts_tkeep(axis_adc_ts_tkeep),
         .o_m_axis_ts_tvalid(axis_adc_ts_tvalid),
         .i_m_axis_ts_tready(axis_adc_ts_tready),
-        .o_m_axis_ts_tlast(axis_adc_ts_tlast)
+        .o_m_axis_ts_tlast(axis_adc_ts_tlast),
+        //
+        .o_adc_sample(adc_sample)
     );
 
-    // ------------------------
+    // ----------------------------------------------------------------------
     // DAC driver
-    // ------------------------
+    // ----------------------------------------------------------------------
 
     dac8551 #(
         .CLK_DIV(DAC_CLK_DIV)
@@ -464,9 +462,9 @@ module top (
         .o_dac_mosi(p_spi_dac_mosi)
     );
 
-    // ------------------------
+    // ----------------------------------------------------------------------
     // TDC (phase detector)
-    // ------------------------
+    // ----------------------------------------------------------------------
 
     tdc_pipeline #(
         .COUNTER_WIDTH(TDC_COUNTER_WIDTH),
@@ -493,9 +491,40 @@ module top (
         .i_ctl_gate_finc(csr_tdc_con_gate_finc)
     );
 
-    // --------------------------------------
+
+    // ----------------------------------------------------------------------
+    // PPS (pulse-per-second generator)
+    // ----------------------------------------------------------------------
+
+    pps_generator #(
+        .RATE_DIV_WIDTH(PPS_RATE_DIV_WIDTH),
+        .PULSE_WIDTH_WIDTH(PPS_PWIDTH_WIDTH),
+        .TS_WIDTH(HWTIME_WIDTH),
+        .TS_BYTES(HWTIME_BYTES)
+    ) u_pps_generator (
+        .i_clk(sys_clk),
+        .i_rst(sys_rst),
+        //
+        .i_en(csr_pps_con_en),
+        .i_rate_div(csr_pps_rate_div),
+        .i_pulse_width(csr_pps_pulse_width),
+        //
+        .i_ts(hwtime_q1),
+        //
+        .o_m_axis_ts_tdata(axis_pps_ts_tdata),
+        .o_m_axis_ts_tkeep(axis_pps_ts_tkeep),
+        .o_m_axis_ts_tvalid(axis_pps_ts_tvalid),
+        .i_m_axis_ts_tready(axis_pps_ts_tready),
+        .o_m_axis_ts_tlast(axis_pps_ts_tlast),
+        //
+        .o_pps_sample(pps_sample),
+        .o_pps_formed(pps_formed)
+    );
+
+
+    // ----------------------------------------------------------------------
     // Wishbone master: control port
-    // --------------------------------------
+    // ----------------------------------------------------------------------
     wbcon #(
         .WB_ADDR_WIDTH(WB_ADDR_WIDTH),
         .WB_DATA_WIDTH(WB_DATA_WIDTH),
@@ -529,9 +558,9 @@ module top (
         .o_tx_axis_tlast(axis_wbcon_tx_tlast)
     );
 
-    // --------------------------------------
+    // ----------------------------------------------------------------------
     // Control and status registers
-    // --------------------------------------
+    // ----------------------------------------------------------------------
 
     lwdo_regs #(
         .ADDRESS_WIDTH(WB_ADDR_WIDTH+WB_BYTE_ADDR_BITS),
@@ -579,14 +608,18 @@ module top (
         .o_adc_ts_rate_div(csr_adc_ts_rate_div),
         // FTUN
         .o_ftun_vtune_set_dac_high(csr_ftun_vtune_set_dac_high),
-        .o_ftun_vtune_set_dac_high_write_trigger(csr_ftun_vtune_set_dac_high_write_trigger)
+        .o_ftun_vtune_set_dac_high_write_trigger(csr_ftun_vtune_set_dac_high_write_trigger),
+        // PPS
+        .o_pps_con_en(csr_pps_con_en),
+        .o_pps_rate_div(csr_pps_rate_div),
+        .o_pps_pulse_width(csr_pps_pulse_width)
     );
 
-    // ----------------------------------
+    // ----------------------------------------------------------------------
     // Control port Tx AXI-S multiplexer
-    // ----------------------------------
+    // ----------------------------------------------------------------------
     axis_arb_mux #(
-        .S_COUNT(4),
+        .S_COUNT(5),
         .DATA_WIDTH(8),
         .KEEP_ENABLE(1),
         .KEEP_WIDTH(1),
@@ -607,36 +640,42 @@ module top (
             axis_adc_tdata,
             axis_adc_ts_tdata,
             axis_tdc_tdata,
+            axis_pps_ts_tdata,
             axis_wbcon_tx_tdata
             }),
         .s_axis_tkeep({
             axis_adc_tkeep,
             axis_adc_ts_tkeep,
             axis_tdc_tkeep,
+            axis_pps_ts_tkeep,
             axis_wbcon_tx_tkeep
             }),
         .s_axis_tvalid({
             axis_adc_tvalid,
             axis_adc_ts_tvalid,
             axis_tdc_tvalid,
+            axis_pps_ts_tvalid,
             axis_wbcon_tx_tvalid
             }),
         .s_axis_tready({
             axis_adc_tready,
             axis_adc_ts_tready,
             axis_tdc_tready,
+            axis_pps_ts_tready,
             axis_wbcon_tx_tready
             }),
         .s_axis_tlast({
             axis_adc_tlast,
             axis_adc_ts_tlast,
             axis_tdc_tlast,
+            axis_pps_ts_tlast,
             axis_wbcon_tx_tlast
             }),
         .s_axis_tid({
             CP_TID_ADC,
             CP_TID_ADC_TS,
             CP_TID_TDC,
+            CP_TID_PPS_TS,
             CP_TID_WBCON
             }),
         //
@@ -649,9 +688,9 @@ module top (
     );
 
 
-    // ----------------------------------
+    // ----------------------------------------------------------------------
     // Control port SLIP / AXI-S streams
-    // ----------------------------------
+    // ----------------------------------------------------------------------
 
     slip_axis_decoder_noid #(
     ) u_slip_axis_dec (

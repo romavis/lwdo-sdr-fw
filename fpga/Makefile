@@ -58,6 +58,7 @@ V_MODULES += \
 	$(SRC_DIR)/modules/ft245sync.v \
 	$(SRC_DIR)/modules/ice40_sspll.v \
 	$(SRC_DIR)/modules/lut_delay.v \
+	$(SRC_DIR)/modules/pps_generator.v \
 	$(SRC_DIR)/modules/slip_axis_decoder_noid.v \
 	$(SRC_DIR)/modules/slip_axis_encoder.v \
 	$(SRC_DIR)/modules/slip_escaper.v \

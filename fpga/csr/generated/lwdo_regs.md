@@ -18,6 +18,9 @@
 |[adc.sample_rate_div](#lwdo_regs-adc-sample_rate_div)|0x064|
 |[adc.ts_rate_div](#lwdo_regs-adc-ts_rate_div)|0x068|
 |[ftun.vtune_set](#lwdo_regs-ftun-vtune_set)|0x080|
+|[pps.con](#lwdo_regs-pps-con)|0x0a0|
+|[pps.rate_div](#lwdo_regs-pps-rate_div)|0x0a4|
+|[pps.pulse_width](#lwdo_regs-pps-pulse_width)|0x0a8|
 |[test.rw](#lwdo_regs-test-rw)|0x3e0|
 
 ### <div id="lwdo_regs-sys-magic"></div>sys.magic
@@ -198,6 +201,45 @@
 |:--|:--|:--|:--|:--|:--|:--|
 |dac_low|[7:0]|rw|0x00|||VCTCXO DAC setting (low bits)|
 |dac_high|[23:8]|rwtrg|0x8000|||VCTCXO DAC setting (high bits)|
+
+### <div id="lwdo_regs-pps-con"></div>pps.con
+
+* offset_address
+    * 0x0a0
+* type
+    * default
+* comment
+    * PPS control
+
+|name|bit_assignments|type|initial_value|reference|labels|comment|
+|:--|:--|:--|:--|:--|:--|:--|
+|en|[0]|rw|0x0|||Enable PPS generator|
+
+### <div id="lwdo_regs-pps-rate_div"></div>pps.rate_div
+
+* offset_address
+    * 0x0a4
+* type
+    * default
+* comment
+    * PPS rate divider
+
+|name|bit_assignments|type|initial_value|reference|labels|comment|
+|:--|:--|:--|:--|:--|:--|:--|
+|rate_div|[27:0]|rw|0xfffffff||||
+
+### <div id="lwdo_regs-pps-pulse_width"></div>pps.pulse_width
+
+* offset_address
+    * 0x0a8
+* type
+    * default
+* comment
+    * PPS pulse width control
+
+|name|bit_assignments|type|initial_value|reference|labels|comment|
+|:--|:--|:--|:--|:--|:--|:--|
+|pulse_width|[27:0]|rw|0x0010000||||
 
 ### <div id="lwdo_regs-test-rw"></div>test.rw
 
