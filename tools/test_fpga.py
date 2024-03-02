@@ -115,12 +115,12 @@ class PID:
     """
 
     def __init__(
-        self, p_gain: float, i_gain: float, d_gain: float, integrator_clip: float = 1e-1
+        self, p_gain: float, i_gain: float, d_gain: float, limit: float = 1e-1
     ):
         assert p_gain >= 0
         assert i_gain >= 0
         assert d_gain >= 0
-        self._integrator_clip = abs(integrator_clip)
+        self._limit = abs(limit)
         self._kp = p_gain
         self._ki = i_gain
         self._kd = d_gain
@@ -136,6 +136,15 @@ class PID:
         self._p = 0.
         self._i = 0.
         self._d = 0.
+
+    def force(self, pos: bool = True):
+        """
+        Override PID state to force the output to either
+        +LIM (pos=True) or -LIM (pos=False).
+        """
+        self._p = 0
+        self._d = 0
+        self._i = self._limit if pos else -self._limit
 
     def update(self, dt: float, err: float):
         """
@@ -154,11 +163,14 @@ class PID:
         self._p = err * z_kp
         # integral
         dy = 0.5 * (err + self._zs_x) * z_ki
-        dy = min(max(dy, -self._integrator_clip), self._integrator_clip)
+        dy = min(max(dy, -self._limit), self._limit)
         i = self._zs_yint + dy
-        self._i = min(max(i, -self._integrator_clip), self._integrator_clip)
+        i = min(max(i, -self._limit), self._limit)
+        self._i = i
         # differential
-        self._d = (err - self._zs_x) * z_kd
+        d = (err - self._zs_x) * z_kd
+        d = min(max(d, -self._limit), self._limit)
+        self._d = d
         # States update
         self._zs_yint = i
         self._zs_x = err
@@ -198,7 +210,7 @@ class LwdoInterface:
         self.ftdi.reset()
         self.ftdi.set_bitmode(0, Ftdi.BitMode.RESET)
         self.ftdi.set_bitmode(0, Ftdi.BitMode.SYNCFF)
-        self.ftdi.set_latency_timer(10)
+        self.ftdi.set_latency_timer(2)
         # Read thread
         self.rdt_stop = threading.Event()
         self.rdt = threading.Thread(target=self.read_thread)
@@ -245,29 +257,41 @@ class LwdoInterface:
 
 
 class LwdoDriver(LwdoReadHandler):
-    TDC_GATE_FREQ = 10  # TDC reports at 10 Hz
-    VCXO_RANGE = 10e-6  # +-10ppm
-    VCXO_PID1_PGAIN = 0.0050
-    VCXO_PID1_IGAIN = 0.0001
-    VCXO_PID1_DGAIN = 0
-    VCXO_FAST_TUNE_ABOVE = 1000e-6
+    TDC_GATE_FREQ = 100  # TDC reports at 10 Hz
+    TDC_COUNT_FREQ = 80e6   # average
+    VCXO_RANGE = 2.5e-6  # VCTXO tuning range is f0-RANGE..f0+RANGE
+    VCXO_DPLL_TAU = 10
+    VCXO_DPLL_QFACTOR = 0.707
+    VCXO_DPLL_HF_ERROR_GAIN = 1 # don't change this, PID KD must be 0 otherwise output is too noisy
+    VCXO_DPLL_FAST_TUNE_ABOVE = 5000e-6
 
     REG_SYS_CON = 0x08
     REG_TDC_CON = 0x40
     REG_FTUN_VTUNE_SET = 0x80
 
-    def __init__(self, ftdi_url: str):
+    def __init__(self, ftdi_url: str, pll_trace_file: Optional[str] = None, pll_step_test: bool = False):
         self.iface = LwdoInterface(ftdi_url, self)
         # TDC
         self.tdc_time = 0
         self.tdc_pd = TDCPhaseDetector()
         self.tdc_tprev = 0
         # VCTCXO PLL
+        # Calculate PID coefs from time constant TAU and quality factor QFACTOR
+        assert self.VCXO_DPLL_TAU > 0
+        assert self.TDC_GATE_FREQ > 0
+        assert 0 < self.VCXO_DPLL_HF_ERROR_GAIN <= 1
+        pid_wn = 1 / self.VCXO_DPLL_TAU
+        pid_w0 = 2 * math.pi * self.TDC_GATE_FREQ
+        pid_d = (1 / self.VCXO_DPLL_HF_ERROR_GAIN - 1) / pid_w0
+        pid_i = (pid_wn ** 2 / pid_w0) * (1 + pid_w0 * pid_d)
+        pid_p = (pid_wn / (pid_w0 * self.VCXO_DPLL_QFACTOR)) * (1 + pid_w0 * pid_d)
+        pid_lim = self.VCXO_RANGE
+        logger.info(f'Using PID params: KP={pid_p:e}, KI={pid_i:e}, KD={pid_d:e}, limit={pid_lim:e}')
         self.vcxo_pid1 = PID(
-            self.VCXO_PID1_PGAIN,
-            self.VCXO_PID1_IGAIN,
-            self.VCXO_PID1_DGAIN,
-            100e-6,
+            pid_p,
+            pid_i,
+            pid_d,
+            pid_lim,
         )
         # Init comms - send empty packet (so called wbcon null operation)
         self.iface.write(b"")
@@ -277,6 +301,13 @@ class LwdoDriver(LwdoReadHandler):
         # Enable TDC
         self.iface.write(bytes([0x21, self.REG_TDC_CON]))
         self.iface.write(bytes([0x22, 0b11]))  # MEAS_FAST, EN
+        # Trace file
+        self.pll_trace_file = None
+        if pll_trace_file:
+            self.pll_trace_file = open(pll_trace_file, 'w')
+        # PLL step response test
+        self.pll_step_test = pll_step_test
+        self.pll_step_test_rem = 3 * self.TDC_GATE_FREQ if pll_step_test else 0
 
     def stop(self):
         self.iface.stop()
@@ -287,34 +318,45 @@ class LwdoDriver(LwdoReadHandler):
 
         valid = False
         meas_err_rel = math.nan
-        pid1 = math.nan
-        pid2 = math.nan
         dt = 0
         if meas_err_cyc is not None:
             valid = True
             dt = self.tdc_time - self.tdc_tprev
             self.tdc_tprev = self.tdc_time
-            meas_err_rel = meas_err_cyc / tdc.t0
-            self.vcxo_pid1.update(dt, meas_err_rel)
-        # Fast retuning
+            meas_err_rel = meas_err_cyc / (dt * self.TDC_COUNT_FREQ) #/ tdc.t0
+            self.vcxo_pid1.update(dt, -meas_err_rel)
+        # Fast retuning - decision
         fast = 0
-        if valid and meas_err_rel > self.VCXO_FAST_TUNE_ABOVE:
+        if self.pll_step_test:
+            # When step test is enabled, do fast tuning only during the "step" phase,
+            # then disable
+            if self.pll_step_test_rem:
+                fast = -1
+                # Force PID to +MAX
+                self.vcxo_pid1.force()
+        else:
+            if valid and meas_err_rel > self.VCXO_DPLL_FAST_TUNE_ABOVE:
+                fast = -1
+            elif valid and meas_err_rel < -self.VCXO_DPLL_FAST_TUNE_ABOVE:
+                fast = 1
+        # Fast retuning - apply
+        if fast < 0:
             # Decrease gate frequency by fiddling with the TDC divider
-            fast = -1
-            self.vcxo_pid1.reset()
             self.iface.write(bytes([0x21, self.REG_TDC_CON]))
             self.iface.write(bytes([0x22, 0b0111]))
-        elif valid and meas_err_rel < -self.VCXO_FAST_TUNE_ABOVE:
+            # Reset PID when fast-tuning
+            #self.vcxo_pid1.reset()
+        elif fast > 0:
             # Increase gate frequency by fiddling with the TDC divider
-            fast = 1
-            self.vcxo_pid1.reset()
             self.iface.write(bytes([0x21, self.REG_TDC_CON]))
             self.iface.write(bytes([0x22, 0b1011]))
+            # Reset PID when fast-tuning
+            #self.vcxo_pid1.reset()
         else:
             # Stop fast tuning
             self.iface.write(bytes([0x21, self.REG_TDC_CON]))
             self.iface.write(bytes([0x22, 0b0011]))
-        tune_ppm = -self.vcxo_pid1.output
+        tune_ppm = self.vcxo_pid1.output
         # convert tuning to register scale
         tune_int = int((tune_ppm / (2 * self.VCXO_RANGE) + 0.5) * 0x1000000)
         tune_int = min(max(tune_int, 0), 0xFFFFFF)
@@ -324,7 +366,7 @@ class LwdoDriver(LwdoReadHandler):
         self.iface.write(bytes([0x22]) + tune_bytes)
         # elaborate logs
         logger.info(
-            "[VCXO PLL] T={:9.3f}: meas_err_cyc={:<15.0f}{:s}  meas_err_ppm={:<14.5f} pid_p={:<14.5f} pid_i={:<14.5f} tune_ppm={:<14.5f} tune_int={:06x} {:s}".format(
+            "[VCXO PLL] T={:9.3f}: meas_err_cyc={:<+15.0f}{:s}  meas_err_ppm={:<14.5f} pid_p={:<14.5f} pid_i={:<14.5f} tune_ppm={:<14.5f} tune_int={:06x} {:s}".format(
                 self.tdc_time,
                 meas_err_cyc if valid else math.nan,
                 " " if not valid else "#" if meas_err_cyc != 0 else ".",
@@ -336,6 +378,16 @@ class LwdoDriver(LwdoReadHandler):
                 'FAST++' if fast > 0 else 'FAST--' if fast < 0 else ''
             )
         )
+        if self.pll_trace_file:
+            flog = f'{self.tdc_time:f},{1 if valid else 0},' \
+                f'{meas_err_cyc if valid else 0:d},' \
+                f'{meas_err_rel if valid else 0:e},' \
+                f'{self.vcxo_pid1.p:e},{self.vcxo_pid1.i:e},' \
+                f'{tune_ppm:e},{tune_int>>8:d}\n'
+            self.pll_trace_file.write(flog)
+        # PLL step test counter
+        if self.pll_step_test_rem:
+            self.pll_step_test_rem -= 1
 
     def handle_rx(self, stream: int, data: bytes):
         logger.debug(f'Rx {stream:02x} [{data.hex(" ")}]')
@@ -364,12 +416,22 @@ def main():
         help="Pyftdi USB device URL",
         default="ftdi://0x0403:0x6010/1",
     )
+    parser.add_argument(
+        "--pll_trace",
+        type=str,
+        help="Path at which we should store CSV PLL trace file",
+    )
+    parser.add_argument(
+        "--pll_step_test",
+        action='store_true',
+        help="Enable PLL step response test",
+    )
     args = parser.parse_args()
 
     # Open FTDI and set it to SyncFIFO mode
     url = args.device
     logger.info(f"Using FTDI URL='{url}'")
-    lwdo = LwdoDriver(url)
+    lwdo = LwdoDriver(url, pll_trace_file=args.pll_trace, pll_step_test=args.pll_step_test)
     try:
         while True:
             time.sleep(1)
