@@ -13,7 +13,7 @@
 |[tdc.con](#lwdo_regs-tdc-con)|0x040|
 |[tdc.pll](#lwdo_regs-tdc-pll)|0x044|
 |[tdc.div_gate](#lwdo_regs-tdc-div_gate)|0x048|
-|[tdc.div_meas_fast](#lwdo_regs-tdc-div_meas_fast)|0x04c|
+|[tdc.div_meas](#lwdo_regs-tdc-div_meas)|0x04c|
 |[adc.con](#lwdo_regs-adc-con)|0x060|
 |[adc.sample_rate_div](#lwdo_regs-adc-sample_rate_div)|0x064|
 |[adc.ts_rate_div](#lwdo_regs-adc-ts_rate_div)|0x068|
@@ -103,7 +103,7 @@
 |name|bit_assignments|type|initial_value|reference|labels|comment|
 |:--|:--|:--|:--|:--|:--|:--|
 |en|[0]|rw|0x0|||Enable TDC|
-|clk_meas_fast|[1]|rw|0x0|||Set this when clk_meas is fast (more than ~1 kHz)|
+|meas_div_en|[1]|rw|0x0|||If 1, divide clk_meas; if 0 then use undivided clk_meas. Set this when clk_meas is fast (more than ~1 kHz)|
 |gate_fdec|[2]|rw|0x0|||Set this to decrease the frequency of divided clk_gate (increases clk_gate divider)|
 |gate_finc|[3]|rw|0x0|||Set this to increase the frequency of divided clk_gate (decreases clk_gate divider)|
 
@@ -136,18 +136,18 @@
 |:--|:--|:--|:--|:--|:--|:--|
 |div_gate|[31:0]|rof|default: 0x00000000||||
 
-### <div id="lwdo_regs-tdc-div_meas_fast"></div>tdc.div_meas_fast
+### <div id="lwdo_regs-tdc-div_meas"></div>tdc.div_meas
 
 * offset_address
     * 0x04c
 * type
     * default
 * comment
-    * Fast clk_meas divider (applied only when clk_meas_fast is set)
+    * Divider for clk_meas
 
 |name|bit_assignments|type|initial_value|reference|labels|comment|
 |:--|:--|:--|:--|:--|:--|:--|
-|div_meas_fast|[31:0]|rof|default: 0x00000000||||
+|div_meas|[31:0]|rof|default: 0x00000000||||
 
 ### <div id="lwdo_regs-adc-con"></div>adc.con
 

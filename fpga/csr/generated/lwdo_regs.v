@@ -15,7 +15,7 @@ module lwdo_regs #(
   parameter [2:0] TDC_PLL_DIVQ_INITIAL_VALUE = 3'h0,
   parameter [6:0] TDC_PLL_SS_DIVFSPAN_INITIAL_VALUE = 7'h00,
   parameter [31:0] TDC_DIV_GATE_INITIAL_VALUE = 32'h00000000,
-  parameter [31:0] TDC_DIV_MEAS_FAST_INITIAL_VALUE = 32'h00000000
+  parameter [31:0] TDC_DIV_MEAS_INITIAL_VALUE = 32'h00000000
 )(
   input i_clk,
   input i_rst_n,
@@ -33,7 +33,7 @@ module lwdo_regs #(
   output o_sys_con_sys_rst,
   input [31:0] i_hwtime_cnt,
   output o_tdc_con_en,
-  output o_tdc_con_clk_meas_fast,
+  output o_tdc_con_meas_div_en,
   output o_tdc_con_gate_fdec,
   output o_tdc_con_gate_finc,
   output [3:0] o_adc_con_adc_en,
@@ -560,7 +560,7 @@ module lwdo_regs #(
           .o_value_unmasked   ()
         );
       end
-      if (1) begin : g_clk_meas_fast
+      if (1) begin : g_meas_div_en
         rggen_bit_field #(
           .WIDTH          (1),
           .INITIAL_VALUE  (1'h0),
@@ -584,7 +584,7 @@ module lwdo_regs #(
           .i_hw_clear         ({1{1'b0}}),
           .i_value            ({1{1'b0}}),
           .i_mask             ({1{1'b1}}),
-          .o_value            (o_tdc_con_clk_meas_fast),
+          .o_value            (o_tdc_con_meas_div_en),
           .o_value_unmasked   ()
         );
       end
@@ -852,7 +852,7 @@ module lwdo_regs #(
         );
       end
     end
-    if (1) begin : g_div_meas_fast
+    if (1) begin : g_div_meas
       wire w_bit_field_valid;
       wire [31:0] w_bit_field_read_mask;
       wire [31:0] w_bit_field_write_mask;
@@ -887,7 +887,7 @@ module lwdo_regs #(
         .i_bit_field_read_data  (w_bit_field_read_data),
         .i_bit_field_value      (w_bit_field_value)
       );
-      if (1) begin : g_div_meas_fast
+      if (1) begin : g_div_meas
         rggen_bit_field #(
           .WIDTH              (32),
           .STORAGE            (0),
@@ -908,7 +908,7 @@ module lwdo_regs #(
           .i_hw_write_data    ({32{1'b0}}),
           .i_hw_set           ({32{1'b0}}),
           .i_hw_clear         ({32{1'b0}}),
-          .i_value            (TDC_DIV_MEAS_FAST_INITIAL_VALUE),
+          .i_value            (TDC_DIV_MEAS_INITIAL_VALUE),
           .i_mask             ({32{1'b1}}),
           .o_value            (),
           .o_value_unmasked   ()

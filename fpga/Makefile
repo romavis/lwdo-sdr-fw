@@ -54,7 +54,6 @@ V_MODULES += \
 	$(SRC_DIR)/modules/cdc_pulsed.v \
 	$(SRC_DIR)/modules/cdc_reset_bridge.v \
 	$(SRC_DIR)/modules/dac8551.v \
-	$(SRC_DIR)/modules/fastcounter.v \
 	$(SRC_DIR)/modules/ft245sync.v \
 	$(SRC_DIR)/modules/ice40_sspll.v \
 	$(SRC_DIR)/modules/lut_delay.v \

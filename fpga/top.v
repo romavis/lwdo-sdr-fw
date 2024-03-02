@@ -75,13 +75,16 @@ module top (
     localparam ADC_SAMPLE_RATE_DIV_WIDTH = 24;
     localparam ADC_TS_RATE_DIV_WIDTH = 8;
 
-    // TDC:
-    // - target gate frequency = 100 Hz
-    // - meas_fast is tuned so that 1 MHz input results in 100 Hz meas frequency
-    //   as a result, when used with 5 MHz reference, we'll have 500 Hz, 10 MHz – 1000 Hz, etc.
+    // TDC
+    // GATE:
+    //  gate frequency set to 100 Hz
+    // MEAS:
+    //  divider is tuned so that 1 MHz input results in 100 Hz MEAS frequency
+    //  as a result, when used with 5 MHz reference, we'll have 500 Hz,
+    //  with 10 MHz reference we'll measure 1000 Hz, etc.
     localparam TDC_COUNTER_WIDTH = 28;
     localparam TDC_GATE_DIV = 200_000;
-    localparam TDC_MEAS_FAST_DIV = 10_000;
+    localparam TDC_MEAS_DIV = 10_000;
 
     // PPS
     localparam PPS_RATE_DIV_WIDTH = 28;
@@ -141,7 +144,7 @@ module top (
     wire csr_sys_con_sys_rst;
     // CSRs: tdc
     wire csr_tdc_con_en;
-    wire csr_tdc_con_clk_meas_fast;
+    wire csr_tdc_con_meas_div_en;
     wire csr_tdc_con_gate_fdec;
     wire csr_tdc_con_gate_finc;
     // CSRs: adc
@@ -469,7 +472,7 @@ module top (
     tdc_pipeline #(
         .COUNTER_WIDTH(TDC_COUNTER_WIDTH),
         .DIV_GATE(TDC_GATE_DIV),
-        .DIV_MEAS_FAST(TDC_MEAS_FAST_DIV)
+        .DIV_MEAS(TDC_MEAS_DIV)
     ) u_tdc_pipeline (
         .i_clk(sys_clk),
         .i_rst(sys_rst),
@@ -486,7 +489,7 @@ module top (
         .i_clk_meas(p_clk_ref_in),
         //
         .i_ctl_en(csr_tdc_con_en),
-        .i_ctl_meas_fast(csr_tdc_con_clk_meas_fast),
+        .i_ctl_meas_div_en(csr_tdc_con_meas_div_en),
         .i_ctl_gate_fdec(csr_tdc_con_gate_fdec),
         .i_ctl_gate_finc(csr_tdc_con_gate_finc)
     );
@@ -574,7 +577,7 @@ module top (
         .TDC_PLL_DIVQ_INITIAL_VALUE(TDC_PLL_DIVQ),
         .TDC_PLL_SS_DIVFSPAN_INITIAL_VALUE(TDC_PLL_SS_DIVFSPAN),
         .TDC_DIV_GATE_INITIAL_VALUE(TDC_GATE_DIV),
-        .TDC_DIV_MEAS_FAST_INITIAL_VALUE(TDC_MEAS_FAST_DIV)
+        .TDC_DIV_MEAS_INITIAL_VALUE(TDC_MEAS_DIV)
     ) lwdo_regs_i (
         // SYSCON
         .i_clk(sys_clk),
@@ -599,7 +602,7 @@ module top (
         .i_hwtime_cnt(hwtime_q1),
         // TDC
         .o_tdc_con_en(csr_tdc_con_en),
-        .o_tdc_con_clk_meas_fast(csr_tdc_con_clk_meas_fast),
+        .o_tdc_con_meas_div_en(csr_tdc_con_meas_div_en),
         .o_tdc_con_gate_fdec(csr_tdc_con_gate_fdec),
         .o_tdc_con_gate_finc(csr_tdc_con_gate_finc),
         // ADC

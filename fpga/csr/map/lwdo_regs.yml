@@ -96,8 +96,8 @@ register_blocks:
           type: rw
           initial_value: 0
 
-        - name: clk_meas_fast
-          comment: "Set this when clk_meas is fast (more than ~1 kHz)"
+        - name: meas_div_en
+          comment: "If 1, divide clk_meas; if 0 then use undivided clk_meas. Set this when clk_meas is fast (more than ~1 kHz)"
           bit_assignment: { width: 1 }
           type: rw
           initial_value: 0
@@ -141,8 +141,8 @@ register_blocks:
           type: rof
           initial_value: { default: 0 }
 
-      - name: div_meas_fast
-        comment: "Fast clk_meas divider (applied only when clk_meas_fast is set)"
+      - name: div_meas
+        comment: "Divider for clk_meas"
         bit_fields:
         - bit_assignment: { width: 32 }
           type: rof
@@ -232,114 +232,6 @@ register_blocks:
         - bit_assignment: { width: 28 }
           type: rw
           initial_value: 0x10000
-
-    # # ------------------------------------------------------
-    # #     ADCT - analog-to-digital converter timing
-    # # ------------------------------------------------------
-    # - name: adct
-    #   offset_address: 0x40
-    #   comment: "ADC timing circuitry controls"
-
-    #   registers:
-    #   - name: con
-    #     comment: "Common enable/disable bits"
-
-    #     bit_fields:
-    #     - name: srate1_en
-    #       comment: "Enable sample rate generator 1"
-    #       bit_assignment: { width: 1 }
-    #       type: rw
-    #       initial_value: 0
-
-    #     - name: srate2_en
-    #       comment: "Enable sample rate generator 2"
-    #       bit_assignment: { width: 1 }
-    #       type: rw
-    #       initial_value: 0
-
-    #     - name: puls1_en
-    #       comment: "Enable pulse generator 1"
-    #       bit_assignment: { width: 1 }
-    #       type: rw
-    #       initial_value: 0
-
-    #     - name: puls2_en
-    #       comment: "Enable pulse generator 2"
-    #       bit_assignment: { width: 1 }
-    #       type: rw
-    #       initial_value: 0
-
-    #   - name: srate1_psc_div
-    #     comment: "Sample rate generator 1 prescaler division factor"
-    #     bit_fields:
-    #     - name: val
-    #       comment: "Clock frequency division factor for sample rate generator 1. fSRATE1=fSYSCLK/(val+1)"
-    #       bit_assignment: { width: 8 }
-    #       type: rw
-    #       initial_value: 199
-
-    #   - name: srate2_psc_div
-    #     comment: "Sample rate generator 2 prescaler division factor"
-    #     bit_fields:
-    #     - name: val
-    #       comment: "Clock frequency division factor for sample rate generator 2. fSRATE2=fSYSCLK/(val+1)"
-    #       bit_assignment: { width: 8 }
-    #       type: rw
-    #       initial_value: 199
-
-    #   - name: puls1_psc_div
-    #     comment: "Pulse generator 1 prescaler division factor"
-    #     bit_fields:
-    #     - name: val
-    #       comment: "Clock frequency division factor for pulse generator 1. fPULS1=fSRATE1/(val+1)"
-    #       bit_assignment: { width: 23 }
-    #       type: rw
-    #       initial_value: 0
-
-    #   - name: puls2_psc_div
-    #     comment: "Pulse generator 2 prescaler division factor"
-    #     bit_fields:
-    #     - name: val
-    #       comment: "Clock frequency division factor for pulse generator 2. fPULS2=fSRATE2/(val+1)"
-    #       bit_assignment: { width: 23 }
-    #       type: rw
-    #       initial_value: 0
-
-    #   - name: puls1_dly
-    #     comment: "Pulse generator 1 micro-delay control"
-    #     bit_fields:
-    #     - name: val
-    #       comment: "Delay for pulse generator 1 output, number of SYSCLK cycles. Tdelay=(val+1)/fSYSCLK"
-    #       bit_assignment: { width: 9 }
-    #       type: rw
-    #       initial_value: 0
-
-    #   - name: puls2_dly
-    #     comment: "Pulse generator 2 micro-delay control"
-    #     bit_fields:
-    #     - name: val
-    #       comment: "Delay for pulse generator 2 output, number of SYSCLK cycles. Tdelay=(val+1)/fSYSCLK"
-    #       bit_assignment: { width: 9 }
-    #       type: rw
-    #       initial_value: 0
-
-    #   - name: puls1_pwidth
-    #     comment: "Pulse generator 1 pulse width control"
-    #     bit_fields:
-    #     - name: val
-    #       comment: "Pulse width for pulse generator 1 output, number of SRATE1 cycles. Tpulse=val/fSRATE1"
-    #       bit_assignment: { width: 16 }
-    #       type: rw
-    #       initial_value: 1
-
-    #   - name: puls2_pwidth
-    #     comment: "Pulse generator 2 pulse width control"
-    #     bit_fields:
-    #     - name: val
-    #       comment: "Pulse width for pulse generator 2 output, number of SRATE2 cycles. Tpulse=val/fSRATE2"
-    #       bit_assignment: { width: 16 }
-    #       type: rw
-    #       initial_value: 1
 
     # ------------------------------------------------------
     #   TEST - test registers
