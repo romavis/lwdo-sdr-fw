@@ -47,16 +47,22 @@ module top (
     // ===============================================================================================================
 
     // SYS PLL
+    // Input: 20 MHz (VCTCXO)
+    // Output: 80 MHz
     localparam [3:0] SYS_PLL_DIVR = 4'd0;
     localparam [6:0] SYS_PLL_DIVF = 7'd31;
     localparam [2:0] SYS_PLL_DIVQ = 3'd3;
     localparam [2:0] SYS_PLL_FILTER_RANGE = 3'd2;
 
-    // TDC PLL
+    // TDC Spread-Spectrum PLL
+    // Input: 80 MHz (SYS PLL)
+    // Output: 80 MHz
     localparam [3:0] TDC_PLL_DIVR = 4'd6;
-    localparam [6:0] TDC_PLL_DIVF = 7'd0;
+    localparam [6:0] TDC_PLL_DIVF = 7'd6;
     localparam [2:0] TDC_PLL_DIVQ = 3'd3;
     localparam [2:0] TDC_PLL_FILTER_RANGE = 3'd1;
+    localparam TDC_PLL_SS_DIVFSPAN = 0; // 1;
+    localparam TDC_PLL_SS_UDIV = 0;
 
     // HW TIME counter
     localparam HWTIME_WIDTH = 32;
@@ -65,10 +71,13 @@ module top (
     // DAC8551 SPI DAC
     localparam DAC_CLK_DIV = 20;
 
-    // TDC
-    localparam TDC_COUNTER_WIDTH = 28;          // bits
-    localparam TDC_GATE_DIV = 2_000_000;        // 20 MHz -> 10 Hz
-    localparam TDC_MEAS_FAST_DIV = 100_000;     // 1 MHz -> 10 Hz
+    // TDC:
+    // - target gate frequency = 100 Hz
+    // - meas_fast is tuned so that 1 MHz input results in 100 Hz meas frequency
+    //   as a result, when used with 5 MHz reference, we'll have 500 Hz, 10 MHz – 1000 Hz, etc.
+    localparam TDC_COUNTER_WIDTH = 28;
+    localparam TDC_GATE_DIV = 200_000;
+    localparam TDC_MEAS_FAST_DIV = 10_000;
 
     // Wishbone bus
     localparam WB_ADDR_WIDTH = 8;
@@ -93,8 +102,7 @@ module top (
 
     // ----------------------------------------------- async  signals -----------------------------------------------
     wire sys_pll_lock;
-    wire tdc_pll_fb;    // external feedback
-    wire tdc_pll_lock;  // this PLL will never lock! this is by design..
+    wire tdc_pll_lock;
 
 
     // ----------------------------------------------- sys_clk domain -----------------------------------------------
@@ -232,13 +240,10 @@ module top (
     // =========================                                                             =========================
     // ===============================================================================================================
 
-    // ------------------------------------------
-    //                  SYS PLL
+    // ----------------------------------------------------------------------
+    //                              SYS PLL
     //
-    // input: 20MHz
-    // Output: 80 MHz
-    //
-    // ------------------------------------------
+    // ----------------------------------------------------------------------
 
     SB_PLL40_PAD #(
         .FEEDBACK_PATH("SIMPLE"),
@@ -256,49 +261,29 @@ module top (
     );
 
 
-    // ------------------------------------------
-    //              TDC COUNTER PLL
+    // ----------------------------------------------------------------------
+    //                  TDC COUNTER SPREAD-SPECTRUM PLL
     //
-    // input: 80MHz (from SYS PLL)
-    // output: 80~92MHz when EXT_DIV is 7~8
+    // Spread-spectrum is used for the purpose of TDC dithering and reducing
+    // the width of a dead zone of a VCTCXO DPLL (implemented on the host)
+    // which uses TDC as a phase detector.
     //
-    // This PLL uses time-variable external divider to introduce huge jitter
-    // into tdc_clk for the purpose of TDC dithering.
-    //
-    // ------------------------------------------
+    // ----------------------------------------------------------------------
 
-    SB_PLL40_CORE #(
-        .FEEDBACK_PATH("EXTERNAL"),
+    ice40_sspll #(
 		.DIVR(TDC_PLL_DIVR),
 		.DIVF(TDC_PLL_DIVF),
 		.DIVQ(TDC_PLL_DIVQ),
 		.FILTER_RANGE(TDC_PLL_FILTER_RANGE),
-        .PLLOUT_SELECT("GENCLK")
+        .SS_DIVFSPAN(TDC_PLL_SS_DIVFSPAN),
+        .SS_UDIV(TDC_PLL_SS_UDIV)
     ) u_tdc_pll (
         .REFERENCECLK(sys_clk),
         .PLLOUTCORE(tdc_clk),
-        .EXTFEEDBACK(tdc_pll_fb),
         .LOCK(tdc_pll_lock),
-        .RESETB(1'b1),
-        .BYPASS(1'b0)
+        .RESETB(1'b1)
     );
 
-    // External divider
-    reg [3:0] tdc_pll_ediv;
-    reg [11:0] tdc_pll_sdiv;
-    always @(posedge tdc_clk) begin
-        if (tdc_pll_ediv) begin
-            tdc_pll_ediv <= tdc_pll_ediv - 1'd1;
-        end else begin
-            if (tdc_pll_sdiv[0]) begin
-                tdc_pll_ediv <= 4'd6;
-            end else begin
-                tdc_pll_ediv <= 4'd7;
-            end
-            tdc_pll_sdiv <= tdc_pll_sdiv + 1'd1;
-        end
-    end
-    assign tdc_pll_fb = !tdc_pll_ediv;
 
     // ===============================================================================================================
     // =========================                                                             =========================
