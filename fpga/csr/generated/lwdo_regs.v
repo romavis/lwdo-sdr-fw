@@ -39,10 +39,9 @@ module lwdo_regs #(
   output [3:0] o_adc_con_adc_en,
   output [23:0] o_adc_sample_rate_div,
   output [7:0] o_adc_ts_rate_div,
-  output [7:0] o_ftun_vtune_set_dac_low,
-  output [15:0] o_ftun_vtune_set_dac_high,
-  output o_ftun_vtune_set_dac_high_write_trigger,
-  output o_ftun_vtune_set_dac_high_read_trigger,
+  output [15:0] o_ftun_vtune_set_dac,
+  output o_ftun_vtune_set_dac_write_trigger,
+  output o_ftun_vtune_set_dac_read_trigger,
   output o_pps_con_en,
   output [27:0] o_pps_rate_div,
   output [27:0] o_pps_pulse_width,
@@ -1121,7 +1120,7 @@ module lwdo_regs #(
       wire [31:0] w_bit_field_write_data;
       wire [31:0] w_bit_field_read_data;
       wire [31:0] w_bit_field_value;
-      `rggen_tie_off_unused_signals(32, 32'h00ffffff, w_bit_field_read_data, w_bit_field_value)
+      `rggen_tie_off_unused_signals(32, 32'h00ffff00, w_bit_field_read_data, w_bit_field_value)
       rggen_default_register #(
         .READABLE       (1),
         .WRITABLE       (1),
@@ -1149,35 +1148,7 @@ module lwdo_regs #(
         .i_bit_field_read_data  (w_bit_field_read_data),
         .i_bit_field_value      (w_bit_field_value)
       );
-      if (1) begin : g_dac_low
-        rggen_bit_field #(
-          .WIDTH          (8),
-          .INITIAL_VALUE  (8'h00),
-          .SW_WRITE_ONCE  (0),
-          .TRIGGER        (0)
-        ) u_bit_field (
-          .i_clk              (i_clk),
-          .i_rst_n            (i_rst_n),
-          .i_sw_valid         (w_bit_field_valid),
-          .i_sw_read_mask     (w_bit_field_read_mask[0+:8]),
-          .i_sw_write_enable  (1'b1),
-          .i_sw_write_mask    (w_bit_field_write_mask[0+:8]),
-          .i_sw_write_data    (w_bit_field_write_data[0+:8]),
-          .o_sw_read_data     (w_bit_field_read_data[0+:8]),
-          .o_sw_value         (w_bit_field_value[0+:8]),
-          .o_write_trigger    (),
-          .o_read_trigger     (),
-          .i_hw_write_enable  (1'b0),
-          .i_hw_write_data    ({8{1'b0}}),
-          .i_hw_set           ({8{1'b0}}),
-          .i_hw_clear         ({8{1'b0}}),
-          .i_value            ({8{1'b0}}),
-          .i_mask             ({8{1'b1}}),
-          .o_value            (o_ftun_vtune_set_dac_low),
-          .o_value_unmasked   ()
-        );
-      end
-      if (1) begin : g_dac_high
+      if (1) begin : g_dac
         rggen_bit_field #(
           .WIDTH          (16),
           .INITIAL_VALUE  (16'h8000),
@@ -1193,15 +1164,15 @@ module lwdo_regs #(
           .i_sw_write_data    (w_bit_field_write_data[8+:16]),
           .o_sw_read_data     (w_bit_field_read_data[8+:16]),
           .o_sw_value         (w_bit_field_value[8+:16]),
-          .o_write_trigger    (o_ftun_vtune_set_dac_high_write_trigger),
-          .o_read_trigger     (o_ftun_vtune_set_dac_high_read_trigger),
+          .o_write_trigger    (o_ftun_vtune_set_dac_write_trigger),
+          .o_read_trigger     (o_ftun_vtune_set_dac_read_trigger),
           .i_hw_write_enable  (1'b0),
           .i_hw_write_data    ({16{1'b0}}),
           .i_hw_set           ({16{1'b0}}),
           .i_hw_clear         ({16{1'b0}}),
           .i_value            ({16{1'b0}}),
           .i_mask             ({16{1'b1}}),
-          .o_value            (o_ftun_vtune_set_dac_high),
+          .o_value            (o_ftun_vtune_set_dac),
           .o_value_unmasked   ()
         );
       end

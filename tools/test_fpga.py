@@ -268,6 +268,10 @@ class LwdoDriver(LwdoReadHandler):
     REG_SYS_CON = 0x08
     REG_TDC_CON = 0x40
     REG_FTUN_VTUNE_SET = 0x80
+    REG_PPS_CON = 0x0a0
+    REG_PPS_RATE = 0x0a4
+    REG_PPS_PWIDTH = 0x0a8
+    REG_IO_CLKOUT = 0x0c0
 
     def __init__(self, ftdi_url: str, pll_trace_file: Optional[str] = None, pll_step_test: bool = False):
         self.iface = LwdoInterface(ftdi_url, self)
@@ -293,6 +297,13 @@ class LwdoDriver(LwdoReadHandler):
             pid_d,
             pid_lim,
         )
+        # Trace file
+        self.pll_trace_file = None
+        if pll_trace_file:
+            self.pll_trace_file = open(pll_trace_file, 'w')
+        # PLL step response test
+        self.pll_step_test = pll_step_test
+        self.pll_step_test_rem = 3 * self.TDC_GATE_FREQ if pll_step_test else 0
         # Init comms - send empty packet (so called wbcon null operation)
         self.iface.write(b"")
         # Reset
@@ -301,13 +312,17 @@ class LwdoDriver(LwdoReadHandler):
         # Enable TDC
         self.iface.write(bytes([0x21, self.REG_TDC_CON]))
         self.iface.write(bytes([0x22, 0b11]))  # MEAS_FAST, EN
-        # Trace file
-        self.pll_trace_file = None
-        if pll_trace_file:
-            self.pll_trace_file = open(pll_trace_file, 'w')
-        # PLL step response test
-        self.pll_step_test = pll_step_test
-        self.pll_step_test_rem = 3 * self.TDC_GATE_FREQ if pll_step_test else 0
+        # Enable PPS
+        self.iface.write(bytes([0x21, self.REG_PPS_RATE]))
+        self.iface.write(bytes([0x22, 0x00, 0xB4, 0xC4, 0x04]))
+        self.iface.write(bytes([0x21, self.REG_PPS_PWIDTH]))
+        self.iface.write(bytes([0x22, 0x7F, 0x38, 0x01, 0x00]))
+        self.iface.write(bytes([0x21, self.REG_PPS_CON]))
+        self.iface.write(bytes([0x22, 0x01, 0x00, 0x00, 0x00]))
+        # Configure CLK_OUT
+        self.iface.write(bytes([0x21, self.REG_IO_CLKOUT]))
+        self.iface.write(bytes([0x22, 2, 0, 0, 0x00]))
+
 
     def stop(self):
         self.iface.stop()
@@ -358,15 +373,15 @@ class LwdoDriver(LwdoReadHandler):
             self.iface.write(bytes([0x22, 0b0011]))
         tune_ppm = self.vcxo_pid1.output
         # convert tuning to register scale
-        tune_int = int((tune_ppm / (2 * self.VCXO_RANGE) + 0.5) * 0x1000000)
-        tune_int = min(max(tune_int, 0), 0xFFFFFF)
+        tune_int = int((tune_ppm / (2 * self.VCXO_RANGE) + 0.5) * 0x10000)
+        tune_int = min(max(tune_int, 0), 0xFFFF)
         # Update VCXO tuning reg
-        tune_bytes = tune_int.to_bytes(3, 'little', signed=False)
+        tune_bytes = tune_int.to_bytes(2, 'little', signed=False)
         self.iface.write(bytes([0x21, self.REG_FTUN_VTUNE_SET]))
-        self.iface.write(bytes([0x22]) + tune_bytes)
+        self.iface.write(bytes([0x22, 0x00]) + tune_bytes)
         # elaborate logs
         logger.info(
-            "[VCXO PLL] T={:9.3f}: meas_err_cyc={:<+15.0f}{:s}  meas_err_ppm={:<14.5f} pid_p={:<14.5f} pid_i={:<14.5f} tune_ppm={:<14.5f} tune_int={:06x} {:s}".format(
+            "[VCXO PLL] T={:9.3f}: meas_err_cyc={:<+15.0f}{:s}  meas_err_ppm={:<14.5f} pid_p={:<14.5f} pid_i={:<14.5f} tune_ppm={:<14.5f} tune_int={:04x} {:s}".format(
                 self.tdc_time,
                 meas_err_cyc if valid else math.nan,
                 " " if not valid else "#" if meas_err_cyc != 0 else ".",

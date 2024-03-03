@@ -200,8 +200,7 @@
 
 |name|bit_assignments|type|initial_value|reference|labels|comment|
 |:--|:--|:--|:--|:--|:--|:--|
-|dac_low|[7:0]|rw|0x00|||VCTCXO DAC setting (low bits)|
-|dac_high|[23:8]|rwtrg|0x8000|||VCTCXO DAC setting (high bits)|
+|dac|[23:8]|rwtrg|0x8000|||VCTCXO DAC setting|
 
 ### <div id="lwdo_regs-pps-con"></div>pps.con
 

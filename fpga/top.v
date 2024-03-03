@@ -155,9 +155,8 @@ module top (
     wire [ADC_SAMPLE_RATE_DIV_WIDTH-1:0] csr_adc_sample_rate_div;
     wire [ADC_TS_RATE_DIV_WIDTH-1:0] csr_adc_ts_rate_div;
     // CSRs: ftun
-    wire [7:0] csr_ftun_vtune_set_dac_low;
-    wire [15:0] csr_ftun_vtune_set_dac_high;
-    wire csr_ftun_vtune_set_dac_high_write_trigger;
+    wire [15:0] csr_ftun_vtune_set_dac;
+    wire csr_ftun_vtune_set_dac_write_trigger;
     // CSRs: pps
     wire csr_pps_con_en;
     wire [PPS_RATE_DIV_WIDTH-1:0] csr_pps_rate_div;
@@ -465,8 +464,8 @@ module top (
     ) u_dac (
         .i_clk(sys_clk),
         .i_rst(sys_rst),
-        .i_wr(sys_rstd || csr_ftun_vtune_set_dac_high_write_trigger),
-        .i_wr_data({8'b0, csr_ftun_vtune_set_dac_high}),
+        .i_wr(sys_rstd || csr_ftun_vtune_set_dac_write_trigger),
+        .i_wr_data({8'b0, csr_ftun_vtune_set_dac}),
         .o_dac_sclk(p_spi_dac_sclk),
         .o_dac_sync_n(p_spi_dac_sync_n),
         .o_dac_mosi(p_spi_dac_mosi)
@@ -617,8 +616,8 @@ module top (
         .o_adc_sample_rate_div(csr_adc_sample_rate_div),
         .o_adc_ts_rate_div(csr_adc_ts_rate_div),
         // FTUN
-        .o_ftun_vtune_set_dac_high(csr_ftun_vtune_set_dac_high),
-        .o_ftun_vtune_set_dac_high_write_trigger(csr_ftun_vtune_set_dac_high_write_trigger),
+        .o_ftun_vtune_set_dac(csr_ftun_vtune_set_dac),
+        .o_ftun_vtune_set_dac_write_trigger(csr_ftun_vtune_set_dac_write_trigger),
         // PPS
         .o_pps_con_en(csr_pps_con_en),
         .o_pps_rate_div(csr_pps_rate_div),

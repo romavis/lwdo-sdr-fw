@@ -191,13 +191,8 @@ register_blocks:
         comment: "VCTCXO DAC control (linear scale, higher value -> higher frequency)"
 
         bit_fields:
-        - name: dac_low
-          comment: "VCTCXO DAC setting (low bits)"
-          bit_assignment: { lsb: 0, width: 8 }
-          type: rw
-          initial_value: 0x00
-        - name: dac_high
-          comment: "VCTCXO DAC setting (high bits)"
+        - name: dac
+          comment: "VCTCXO DAC setting"
           bit_assignment: { lsb: 8, width: 16 }
           type: rwtrg
           initial_value: 0x8000
