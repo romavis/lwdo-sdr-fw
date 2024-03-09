@@ -13,6 +13,7 @@ module ice40_sspll #(
     parameter [3:0] DIVR = 4'd0,
     parameter [31:0] DIVF = 32'd0,
     parameter [2:0] DIVQ = 3'd0,
+    parameter [31:0] DIVO = 32'd0,
     parameter [2:0] FILTER_RANGE = 3'd1,
     // Spread-spectrum params:
     // DIVF span during SS operation (higher -> wider spread)
@@ -36,6 +37,8 @@ module ice40_sspll #(
     localparam EDIV_LO = DIVF - SS_DIVFSPAN / 2;
     // LFSR clock divider
     localparam UDIV_WIDTH = $clog2((SS_UDIV >= 2) ? SS_UDIV : 2);
+    // Output divider
+    localparam ODIV_WIDTH = $clog2(DIVO);
 
     // PLL output clock domain
     wire pll_clk;
@@ -125,7 +128,24 @@ module ice40_sspll #(
         end
     end
 
+    // Output divider, div by 2*DIVO
+    reg [ODIV_WIDTH-1:0] odiv_ctr;
+    reg odiv_q;
+    always @(posedge pll_clk or posedge pll_rst) begin
+        if (pll_rst) begin
+            odiv_ctr <= 1'd0;
+            odiv_q <= 1'b0;
+        end else begin
+            if (odiv_ctr) begin
+                odiv_ctr <= odiv_ctr - 1'd1;
+            end else begin
+                odiv_ctr <= DIVO - 1;
+                odiv_q <= ~odiv_q;
+            end
+        end
+    end
+
     // Output
-    assign PLLOUTCORE = pll_clk;
+    assign PLLOUTCORE = (DIVO >= 1) ? odiv_q : pll_clk;
 
 endmodule
