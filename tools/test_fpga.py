@@ -38,9 +38,8 @@ class TDCPhaseDetector:
     """
 
     def __init__(self):
-        self._first = True
-        self._prev_t12_avail = False
-        self._prev_ct0 = 1
+        self._init_skip = 2
+        self._prev_t12_valid = False
         self._prev_ct2 = 0
         self._prev_mp = 0
 
@@ -48,7 +47,7 @@ class TDCPhaseDetector:
         # Two pulse signals: S0 and S1
         #   Sc - high-frequency counting clock
         #   S0 - gate signal (sequence of pulses)
-        #   S1 - reference signal (sequence of pulses)
+        #   S1 - measured signal (sequence of pulses)
         #   S0, S1 pulses are each 1x Sc pulse wide.
         # The counter CX counts +1 in each Sc cycle, except in a cycle when
         # S0 is 1 – in that cycle counter is reset to 0. The counter reset marks
@@ -70,18 +69,22 @@ class TDCPhaseDetector:
         #   T1-T2 may not be available (e.g. if S1==1 was never observed during
         #       the counting interval). Each T0-T2 recording contains extra data
         #       that allows to detect if this is the case.
-        ct0 = meas.t0 + 1
-        ct2 = ct0 - meas.t2
-        mp = ct0 // 2  # midpoint
 
-        # Left-hand (negative) candidate – comes from T2 point of the previous
+        # Duration of gate period in clock cycles
+        ct0 = meas.t0 + 1
+        # Gate period midpoint
+        mp = ct0 // 2
+        # How many clocks is S0 ahead of last S1 pulse (0 means they coincide)
+        ct2 = meas.t0 - meas.t2
+
+        # Left-hand (non-positive) candidate – comes from T2 point of the previous
         # interval.
         cn = self._prev_ct2
-        cn_valid = self._prev_t12_avail and cn <= self._prev_mp
-        # Right-hand (non-negative) candidate – comes from T1 point of the
+        cn_valid = self._prev_t12_valid and cn < self._prev_mp
+        # Right-hand (positive) candidate – comes from T1 point of the
         # current interval.
-        cp = meas.t1
-        cp_valid = meas.t12_valid and cp < mp
+        cp = meas.t1 + 1
+        cp_valid = meas.t12_valid and cp <= mp
 
         # Decide which to use
         px = 0
@@ -95,14 +98,14 @@ class TDCPhaseDetector:
             px = -cn
             px_valid = True
 
-        self._prev_t12_avail = meas.t12_valid
-        self._prev_ct0 = ct0
+        self._prev_t12_valid = meas.t12_valid
         self._prev_ct2 = ct2
         self._prev_mp = mp
 
-        # Skip first measurement
-        px_valid = px_valid and not self._first
-        self._first = False
+        # Skip first measurements
+        if self._init_skip > 0:
+            px_valid = False
+            self._init_skip -= 1
         # Return error in clock cycles
         if px_valid:
             return px
@@ -257,12 +260,17 @@ class LwdoInterface:
 
 
 class LwdoDriver(LwdoReadHandler):
-    TDC_GATE_FREQ = 100  # TDC reports at 10 Hz
+    TDC_MEAS_FREQ = 500
+    TDC_GATE_FREQ = 100
     TDC_COUNT_FREQ = 80e6   # average
-    VCXO_RANGE = 2.5e-6  # VCTXO tuning range is f0-RANGE..f0+RANGE
-    VCXO_DPLL_TAU = 10
-    VCXO_DPLL_QFACTOR = 0.707
-    VCXO_DPLL_HF_ERROR_GAIN = 1 # don't change this, PID KD must be 0 otherwise output is too noisy
+    VCXO_RANGE = 10e-6  # VCTXO tuning range is f0-RANGE..f0+RANGE
+    # VCXO_TDC_LPF_TAU = 0.2
+    # VCXO_DPLL_TAU = 1
+    # VCXO_DPLL_QFACTOR = 0.69
+    VCXO_TDC_LPF_TAU = 1
+    VCXO_DPLL_TAU = 5
+    VCXO_DPLL_QFACTOR = 0.69
+    VCXO_DPLL_KD = 0.00
     VCXO_DPLL_FAST_TUNE_ABOVE = 5000e-6
 
     REG_SYS_CON = 0x08
@@ -274,7 +282,6 @@ class LwdoDriver(LwdoReadHandler):
     REG_IO_CLKOUT = 0x0c0
 
     def __init__(self, ftdi_url: str, pll_trace_file: Optional[str] = None, pll_step_test: bool = False):
-        self.iface = LwdoInterface(ftdi_url, self)
         # TDC
         self.tdc_time = 0
         self.tdc_pd = TDCPhaseDetector()
@@ -283,10 +290,10 @@ class LwdoDriver(LwdoReadHandler):
         # Calculate PID coefs from time constant TAU and quality factor QFACTOR
         assert self.VCXO_DPLL_TAU > 0
         assert self.TDC_GATE_FREQ > 0
-        assert 0 < self.VCXO_DPLL_HF_ERROR_GAIN <= 1
+        self.vcxo_lpf_alpha = 1 - math.exp(-(1 / self.TDC_GATE_FREQ) / self.VCXO_TDC_LPF_TAU)
         pid_wn = 1 / self.VCXO_DPLL_TAU
         pid_w0 = 2 * math.pi * self.TDC_GATE_FREQ
-        pid_d = (1 / self.VCXO_DPLL_HF_ERROR_GAIN - 1) / pid_w0
+        pid_d = self.VCXO_DPLL_KD
         pid_i = (pid_wn ** 2 / pid_w0) * (1 + pid_w0 * pid_d)
         pid_p = (pid_wn / (pid_w0 * self.VCXO_DPLL_QFACTOR)) * (1 + pid_w0 * pid_d)
         pid_lim = self.VCXO_RANGE
@@ -304,6 +311,11 @@ class LwdoDriver(LwdoReadHandler):
         # PLL step response test
         self.pll_step_test = pll_step_test
         self.pll_step_test_rem = 3 * self.TDC_GATE_FREQ if pll_step_test else 0
+        # ...
+        self.ze = 0
+        self.zd = 0
+        # Init FTDI interface - this also starts Rx thread 
+        self.iface = LwdoInterface(ftdi_url, self)
         # Init comms - send empty packet (so called wbcon null operation)
         self.iface.write(b"")
         # Reset
@@ -329,17 +341,33 @@ class LwdoDriver(LwdoReadHandler):
 
     def update_vcxo_pll(self, tdc: TDCMeasurement):
         self.tdc_time += 1.0 / self.TDC_GATE_FREQ
-        meas_err_cyc = self.tdc_pd.process_meas(tdc)
+        err_cyc = self.tdc_pd.process_meas(tdc)
 
         valid = False
-        meas_err_rel = math.nan
+        err_ns = math.nan
+        err_gate_rel = math.nan
+        err_gate_rad = math.nan
+        # err_meas_rel = math.nan
+        # err_meas_rad = math.nan
         dt = 0
-        if meas_err_cyc is not None:
+        if err_cyc is not None:
             valid = True
             dt = self.tdc_time - self.tdc_tprev
             self.tdc_tprev = self.tdc_time
-            meas_err_rel = meas_err_cyc / (dt * self.TDC_COUNT_FREQ) #/ tdc.t0
-            self.vcxo_pid1.update(dt, -meas_err_rel)
+            # LPF error
+            self.ze += self.vcxo_lpf_alpha * (err_cyc - self.ze)
+            # Error in nanoseconds
+            err_ns = self.ze / self.TDC_COUNT_FREQ * 1e9
+            # Quantize to 2ns
+            # err_ns = round(err_ns / 2) * 2
+            # Error relative to period
+            err_gate_rel = (err_ns / 1e9) * self.TDC_GATE_FREQ
+            # err_meas_rel = (err_ns / 1e9) * self.TDC_MEAS_FREQ
+            # Error in radians
+            err_gate_rad = 2 * math.pi * err_gate_rel
+            # err_meas_rad = 2 * math.pi * err_meas_rel
+            # Update PID
+            self.vcxo_pid1.update(dt, -err_gate_rad)
         # Fast retuning - decision
         fast = 0
         if self.pll_step_test:
@@ -350,9 +378,9 @@ class LwdoDriver(LwdoReadHandler):
                 # Force PID to +MAX
                 self.vcxo_pid1.force()
         else:
-            if valid and meas_err_rel > self.VCXO_DPLL_FAST_TUNE_ABOVE:
+            if valid and err_gate_rel > self.VCXO_DPLL_FAST_TUNE_ABOVE:
                 fast = -1
-            elif valid and meas_err_rel < -self.VCXO_DPLL_FAST_TUNE_ABOVE:
+            elif valid and err_gate_rel < -self.VCXO_DPLL_FAST_TUNE_ABOVE:
                 fast = 1
         # Fast retuning - apply
         if fast < 0:
@@ -373,19 +401,25 @@ class LwdoDriver(LwdoReadHandler):
             self.iface.write(bytes([0x22, 0b0011]))
         tune_ppm = self.vcxo_pid1.output
         # convert tuning to register scale
-        tune_int = int((tune_ppm / (2 * self.VCXO_RANGE) + 0.5) * 0x10000)
-        tune_int = min(max(tune_int, 0), 0xFFFF)
+        tune_int = (tune_ppm / (2 * self.VCXO_RANGE) + 0.5) * 0x10000
+        # Hysteresis
+        if -0.75 <= (tune_int - self.zd) <= 0.75:
+            tune_int = self.zd
+        tune_int = round(tune_int)
+        self.zd = tune_int
+        tune_int = min(max(int(tune_int), 0), 0xFFFF)
         # Update VCXO tuning reg
         tune_bytes = tune_int.to_bytes(2, 'little', signed=False)
         self.iface.write(bytes([0x21, self.REG_FTUN_VTUNE_SET]))
         self.iface.write(bytes([0x22, 0x00]) + tune_bytes)
         # elaborate logs
         logger.info(
-            "[VCXO PLL] T={:9.3f}: meas_err_cyc={:<+15.0f}{:s}  meas_err_ppm={:<14.5f} pid_p={:<14.5f} pid_i={:<14.5f} tune_ppm={:<14.5f} tune_int={:04x} {:s}".format(
+            "[VCXO PLL] T={:9.3f}: err_cyc={:<+15.0f} {:s}  err_ns={:<14.5f} err_gate_deg={:<14.5f} P={:<14.5f} I={:<14.5f} tune_ppm={:<14.5f} tune_int={:04x} {:s}".format(
                 self.tdc_time,
-                meas_err_cyc if valid else math.nan,
-                " " if not valid else "#" if meas_err_cyc != 0 else ".",
-                (meas_err_rel * 1e6) if valid else math.nan,
+                err_cyc if valid else math.nan,
+                " " if not valid else "#" if err_cyc != 0 else ".",
+                err_ns if valid else math.nan,
+                (err_gate_rad * 180 / math.pi) if valid else math.nan,
                 self.vcxo_pid1.p * 1e6,
                 self.vcxo_pid1.i * 1e6,
                 tune_ppm * 1e6,
@@ -395,10 +429,10 @@ class LwdoDriver(LwdoReadHandler):
         )
         if self.pll_trace_file:
             flog = f'{self.tdc_time:f},{1 if valid else 0},' \
-                f'{meas_err_cyc if valid else 0:d},' \
-                f'{meas_err_rel if valid else 0:e},' \
+                f'{err_cyc if valid else 0:d},' \
+                f'{err_gate_rel if valid else 0:e},' \
                 f'{self.vcxo_pid1.p:e},{self.vcxo_pid1.i:e},' \
-                f'{tune_ppm:e},{tune_int>>8:d}\n'
+                f'{tune_ppm:e},{tune_int:d}\n'
             self.pll_trace_file.write(flog)
         # PLL step test counter
         if self.pll_step_test_rem:
