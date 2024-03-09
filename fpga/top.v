@@ -15,7 +15,8 @@ module top (
     input [3:0] p_adc_sdata,
     output [1:0] p_adc_cs_n,
     // External I/O,
-    inout [8:1] p_extio,
+    input [7:6] p_extio_i,
+    output [5:0] p_extio_o,
     // SPI DAC,
     output p_spi_dac_mosi,
     output p_spi_dac_sclk,
@@ -60,8 +61,9 @@ module top (
     localparam [3:0] TDC_PLL_DIVR = 4'd6;
     localparam [6:0] TDC_PLL_DIVF = 7'd6;
     localparam [2:0] TDC_PLL_DIVQ = 3'd3;
+    localparam [2:0] TDC_PLL_DIVO = 32'd0;
     localparam [2:0] TDC_PLL_FILTER_RANGE = 3'd1;
-    localparam TDC_PLL_SS_DIVFSPAN = 0; // 1;
+    localparam TDC_PLL_SS_DIVFSPAN = 1;
     localparam TDC_PLL_SS_UDIV = 0;
 
     // HW TIME counter
@@ -138,6 +140,11 @@ module top (
 
     // ADC
     wire adc_sample;
+
+    // TDC
+    wire tdc_gate_divided;
+    wire tdc_meas_divided;
+    wire [1:0] tdc_s_pulse;
 
     // PPS
     wire pps_sample;
@@ -312,6 +319,7 @@ module top (
 		.DIVR(TDC_PLL_DIVR),
 		.DIVF(TDC_PLL_DIVF),
 		.DIVQ(TDC_PLL_DIVQ),
+        .DIVO(TDC_PLL_DIVO),
 		.FILTER_RANGE(TDC_PLL_FILTER_RANGE),
         .SS_DIVFSPAN(TDC_PLL_SS_DIVFSPAN),
         .SS_UDIV(TDC_PLL_SS_UDIV)
@@ -497,7 +505,11 @@ module top (
         .i_ctl_en(csr_tdc_con_en),
         .i_ctl_meas_div_en(csr_tdc_con_meas_div_en),
         .i_ctl_gate_fdec(csr_tdc_con_gate_fdec),
-        .i_ctl_gate_finc(csr_tdc_con_gate_finc)
+        .i_ctl_gate_finc(csr_tdc_con_gate_finc),
+        //
+        .o_gate_divided(tdc_gate_divided),
+        .o_meas_divided(tdc_meas_divided),
+        .o_tdc_s_pulse(tdc_s_pulse)
     );
 
 
@@ -917,5 +929,11 @@ module top (
     assign p_led_in4_r = axis_ft_rx_tready;
     assign p_led_in4_g = 0;
 
+    assign p_extio_o[0] = p_clk_20mhz_gbin2;
+    assign p_extio_o[1] = p_clk_ref_in;
+    assign p_extio_o[2] = tdc_s_pulse[0];
+    assign p_extio_o[3] = tdc_s_pulse[1];
+    assign p_extio_o[4] = tdc_gate_divided;
+    assign p_extio_o[5] = tdc_meas_divided;
 
 endmodule

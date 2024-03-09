@@ -32,7 +32,11 @@ module tdc_pipeline #(
     input i_ctl_en,             // if 1, TDC is enabled
     input i_ctl_meas_div_en,    // if 1, divide clk_meas, else use it as-is
     input i_ctl_gate_fdec,      // if 1, gate frequency is slightly decreased
-    input i_ctl_gate_finc       // if 1, gate frequency is slightly increased
+    input i_ctl_gate_finc,      // if 1, gate frequency is slightly increased
+    // Debug
+    output o_gate_divided,
+    output o_meas_divided,
+    output [1:0] o_tdc_s_pulse  //
 );
 
     localparam DIV_GATE_BITS = $clog2(DIV_GATE + DIV_GATE_INCDEC_DELTA);
@@ -337,5 +341,9 @@ module tdc_pipeline #(
         .m_axis_tready(i_m_axis_tready),
         .m_axis_tlast(o_m_axis_tlast)
     );
+
+    assign o_gate_divided = gate_divided;
+    assign o_meas_divided = meas_divided;
+    assign o_tdc_s_pulse = tdc_s_pulse;
 
 endmodule

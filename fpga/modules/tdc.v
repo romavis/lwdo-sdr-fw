@@ -91,47 +91,38 @@ module tdc #(
     end
 
     // Data holding registers
-    reg [COUNTER_WIDTH-1:0] data_t0_reg;
-    reg [COUNTER_WIDTH-1:0] data_t1_reg;
-    reg [COUNTER_WIDTH-1:0] data_t2_reg;
-    reg data_t12_valid_reg;
-    always @(posedge i_clk or posedge i_rst) begin
-        if (i_rst) begin
-            data_t0_reg <= 1'd0;
-            data_t1_reg <= 1'd0;
-            data_t2_reg <= 1'd0;
-        end else begin
-            if (s_q1[0]) begin
-                data_t0_reg <= cnt_q1;
-                if (!s_q1[1]) begin
-                    // Copy recorded values
-                    data_t12_valid_reg <= t12_valid_reg;
-                    data_t1_reg <= t1_reg;
-                    data_t2_reg <= t2_reg;
-                end else begin
-                    // It's too late to copy from T1-2,
-                    // make values on the spot
-                    data_t12_valid_reg <= 1'b1;
-                    if (t12_valid_reg) begin
-                        data_t1_reg <= t1_reg;
-                    end else begin
-                        data_t1_reg <= cnt_q1;
-                    end
-                    data_t2_reg <= cnt_q1;
-                end
-            end
-        end
-    end
-
-    // AXI-S handshake
     reg axis_tvalid_reg;
-
+    reg [COUNTER_WIDTH-1:0] axis_data_t0_reg;
+    reg [COUNTER_WIDTH-1:0] axis_data_t1_reg;
+    reg [COUNTER_WIDTH-1:0] axis_data_t2_reg;
+    reg axis_data_t12_valid_reg;
     always @(posedge i_clk or posedge i_rst) begin
         if (i_rst) begin
             axis_tvalid_reg <= 1'b0;
+            axis_data_t0_reg <= 1'd0;
+            axis_data_t1_reg <= 1'd0;
+            axis_data_t2_reg <= 1'd0;
+            axis_data_t12_valid_reg <= 1'd0;
         end else begin
-            if (s_q1[0]) begin
+            if (s_q1[0] && (!axis_tvalid_reg || i_m_axis_tready)) begin
                 axis_tvalid_reg <= 1'b1;
+                axis_data_t0_reg <= cnt_q1;
+                if (!s_q1[1]) begin
+                    // Copy recorded values
+                    axis_data_t12_valid_reg <= t12_valid_reg;
+                    axis_data_t1_reg <= t1_reg;
+                    axis_data_t2_reg <= t2_reg;
+                end else begin
+                    // It's too late to copy from T1-2,
+                    // make values on the spot
+                    axis_data_t12_valid_reg <= 1'b1;
+                    if (t12_valid_reg) begin
+                        axis_data_t1_reg <= t1_reg;
+                    end else begin
+                        axis_data_t1_reg <= cnt_q1;
+                    end
+                    axis_data_t2_reg <= cnt_q1;
+                end
             end else if (i_m_axis_tready) begin
                 axis_tvalid_reg <= 1'b0;
             end
@@ -139,7 +130,11 @@ module tdc #(
     end
 
     assign o_m_axis_tvalid = axis_tvalid_reg;
-    assign o_m_axis_tdata =
-        {data_t12_valid_reg, data_t2_reg, data_t1_reg, data_t0_reg};
+    assign o_m_axis_tdata = {
+        axis_data_t12_valid_reg,
+        axis_data_t2_reg,
+        axis_data_t1_reg,
+        axis_data_t0_reg
+    };
 
 endmodule

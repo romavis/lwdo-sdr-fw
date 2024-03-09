@@ -28,14 +28,14 @@ set_io p_adc_sdata[3] 22
 set_io p_adc_cs_n[1] 23
 
 # External I/O
-set_io p_extio[8] 34
-set_io p_extio[7] 37
-set_io p_extio[6] 38
-set_io p_extio[5] 39
-set_io p_extio[4] 41
-set_io p_extio[3] 42
-set_io p_extio[2] 43
-set_io p_extio[1] 44
+set_io p_extio_i[7] 34
+set_io p_extio_i[6] 37
+set_io p_extio_o[5] 38
+set_io p_extio_o[4] 39
+set_io p_extio_o[3] 41
+set_io p_extio_o[2] 42
+set_io p_extio_o[1] 43
+set_io p_extio_o[0] 44
 
 # SPI DAC
 set_io p_spi_dac_mosi 45
