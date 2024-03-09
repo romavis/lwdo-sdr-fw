@@ -50,7 +50,7 @@ esac
 
 set -x
 # Generate Verilog and C headers
-$RGGEN -c $PREFIX/$RGGEN_CONFIG -o $PREFIX/$GEN_DIR --enable verilog_rtl --enable c_header  ${RGGEN_MAPS[@]/#/$PREFIX/}
+$RGGEN -c $PREFIX/$RGGEN_CONFIG -o $PREFIX/$GEN_DIR --enable verilog_rtl --enable c_header --enable markdown ${RGGEN_MAPS[@]/#/$PREFIX/}
 set +x
 
 echo "Done."
