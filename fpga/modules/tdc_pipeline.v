@@ -67,11 +67,13 @@ module tdc_pipeline #(
     // divider
     reg [DIV_GATE_BITS-1:0] gate_div_ctr;
     reg gate_divided;
+    wire gate_divided_cdc;
     
     // ------------------------ clk_meas domain ------------------------
     // divider
     reg [DIV_GATE_BITS-1:0] meas_div_ctr;
     reg meas_divided;
+    wire meas_divided_cdc;
 
     // ------------------------ clk_tdc  domain ------------------------
     // control
@@ -195,6 +197,7 @@ module tdc_pipeline #(
         .i_a_clk(clk_gate),
         .i_a_rst(rst_gate),
         .i_a_pulse(gate_divided),
+        .o_a_cdc(gate_divided_cdc),
         .i_b_clk(clk_tdc),
         .i_b_rst(rst_tdc),
         .o_b_pulse(tdc_clk_gate_divided)
@@ -206,6 +209,7 @@ module tdc_pipeline #(
         .i_a_clk(clk_meas),
         .i_a_rst(rst_meas),
         .i_a_pulse(meas_divided),
+        .o_a_cdc(meas_divided_cdc),
         .i_b_clk(clk_tdc),
         .i_b_rst(rst_tdc),
         .o_b_pulse(tdc_clk_meas_divided)
@@ -342,8 +346,8 @@ module tdc_pipeline #(
         .m_axis_tlast(o_m_axis_tlast)
     );
 
-    assign o_gate_divided = gate_divided;
-    assign o_meas_divided = meas_divided;
+    assign o_gate_divided = gate_divided_cdc;
+    assign o_meas_divided = meas_divided_cdc;
     assign o_tdc_s_pulse = tdc_s_pulse;
 
 endmodule

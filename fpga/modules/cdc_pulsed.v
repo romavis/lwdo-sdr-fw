@@ -18,6 +18,7 @@ module cdc_pulsed #(
     input i_a_rst,
     input i_a_pulse,
     output o_a_busy,
+    output o_a_cdc,
     // Side B - pulse output
     input i_b_clk,
     input i_b_rst,
@@ -88,6 +89,7 @@ module cdc_pulsed #(
     end
 
     assign o_a_busy = a_busy;
+    assign o_a_cdc = a_data;
     assign o_b_pulse = b_data & ~b_data_q;
 
 endmodule
